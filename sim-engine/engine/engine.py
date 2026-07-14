@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic daily orchestrator for the Mariven simulation engine."""
 
+import argparse
 import copy
 import json
 from collections.abc import Mapping
@@ -9,6 +10,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from archive import archive_day
 from commodities_model import CommoditySeries, commodities_step
 from events_model import events_step
 from exchange_model import FxDataset, exchange_step
@@ -178,6 +180,58 @@ def render_brief(state: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def run_days(
+    state: Mapping[str, Any],
+    days: int,
+    resources: EngineResources,
+) -> tuple[dict, list[dict]]:
+    """Run a sequence of pure daily ticks and return every daily state."""
+    current = copy.deepcopy(state)
+    daily_states = []
+    for _ in range(days):
+        current = tick(current, resources=resources)
+        daily_states.append(current)
+    return current, daily_states
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("--days must be positive")
+    return parsed
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the command-line simulation, optionally without persistence."""
+    parser = argparse.ArgumentParser(
+        description="Run the Mariven daily simulation"
+    )
+    parser.add_argument("--days", type=_positive_int, default=1)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(argv)
+
+    root = Path(__file__).resolve().parents[1]
+    data_dir = root / "data"
+    state_path = data_dir / "state.json"
+    archive_dir = root / "output" / "archive"
+    db_path = root / "output" / "events.db"
+    with state_path.open("r", encoding="utf-8") as source:
+        initial_state = json.load(source)
+
+    resources = EngineResources.load(data_dir)
+    _, daily_states = run_days(initial_state, args.days, resources)
+    for daily_state in daily_states:
+        print(render_brief(daily_state))
+        if not args.dry_run:
+            archive_day(
+                daily_state,
+                state_path=state_path,
+                archive_dir=archive_dir,
+                db_path=db_path,
+            )
+    return 0
+
+
 def _default_data_dir() -> Path:
     return Path(__file__).resolve().parents[1] / "data"
 
@@ -186,3 +240,7 @@ def _day_of_week_cn(d: date) -> str:
     return ("周一", "周二", "周三", "周四", "周五", "周六", "周日")[
         d.weekday()
     ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
