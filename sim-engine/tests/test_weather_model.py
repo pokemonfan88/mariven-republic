@@ -1,6 +1,7 @@
 import random
 import statistics
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -38,6 +39,33 @@ class WeatherTests(unittest.TestCase):
 
     def test_critical_coral_risk_is_reachable(self):
         self.assertEqual(coral_bleaching_risk(date(2026, 3, 1), 30.0), "critical")
+
+    def test_step_emits_critical_coral_event_during_strong_el_nino_peak(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "strong_el_nino.csv"
+            source.write_text(
+                "Year,Month,SOI\n2026,3,-20.0\n",
+                encoding="utf-8",
+            )
+            strong_el_nino = SoiSeries.from_csv(source)
+
+        def factory(name):
+            return random.Random("2026-03-01:" + name)
+
+        public, _, events = weather_step(
+            date(2026, 3, 1),
+            {"previous_conditions": {}, "rainfall_history": []},
+            strong_el_nino,
+            factory,
+        )
+        critical_event = any(
+            event["type"] == "weather" and event["severity"] == "critical"
+            for event in events
+        )
+        self.assertEqual(
+            ("critical", True),
+            (public["coral_bleaching_risk"], critical_event),
+        )
 
     def test_step_is_deterministic_and_outputs_five_cities(self):
         previous = {"previous_conditions": {}, "rainfall_history": []}

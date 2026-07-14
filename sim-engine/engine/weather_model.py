@@ -422,7 +422,7 @@ def _sea_surface_temperature(d: date, soi_value: float | None) -> float:
         2 * math.pi * (d.timetuple().tm_yday - 60) / year_days
     )
     if soi_value is not None and soi_value < -7:
-        sst += 0.5
+        sst += 0.6
     elif soi_value is not None and soi_value > 7:
         sst -= 0.3
     return sst
