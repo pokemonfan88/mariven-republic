@@ -8,6 +8,7 @@ from bisect import bisect_right
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
+from numbers import Real
 from pathlib import Path
 
 
@@ -106,9 +107,17 @@ def exchange_step(
         * math.log(rates[currency] / dataset.base_rates[currency])
         for currency in BASKET_WEIGHTS
     )
-    target = BASE_MVL_USD * math.exp(log_move)
-    previous = float(previous_state.get("mvl_per_usd", BASE_MVL_USD))
-    next_rate = previous + 0.12 * (target - previous) + rng.gauss(0.0, 0.0025)
+    target = _finite_real(
+        BASE_MVL_USD * math.exp(log_move), "exchange-rate target"
+    )
+    previous = _finite_real(
+        previous_state.get("mvl_per_usd", BASE_MVL_USD), "mvl_per_usd"
+    )
+    shock = _finite_real(rng.gauss(0.0, 0.0025), "RNG shock")
+    next_rate = _finite_real(
+        previous + 0.12 * (target - previous) + shock,
+        "derived mvl_per_usd",
+    )
     next_rate = min(2.80, max(1.80, next_rate))
 
     public = {
@@ -213,3 +222,16 @@ def _staleness_days(d: date, source_month: str) -> int:
         monthrange(source_year, source_month_number)[1],
     )
     return max(0, (d - source_month_end).days)
+
+
+def _finite_real(value, label: str) -> float:
+    message = f"{label} must be a finite real number"
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(message)
+    try:
+        converted = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(message) from exc
+    if not math.isfinite(converted):
+        raise ValueError(message)
+    return converted
