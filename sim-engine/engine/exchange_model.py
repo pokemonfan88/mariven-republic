@@ -1,132 +1,215 @@
-#!/usr/bin/env python3
-"""
-Mariven Exchange Rate Model — v2.0
-===================================
-马里文里拉 (MVL) 汇率生成器。
-锚定真实一篮子货币数据: AUD/NZD/USD/CNY/EUR，按贸易权重加权。
+"""Calendar-aware basket exchange-rate model for Mariven."""
 
-数据源: FRED (美联储经济数据库) 月度汇率
-  - aud_usd.csv, nzd_usd.csv, usd_cny.csv, eur_usd.csv
-
-贸易权重:
-  AUD 40% · NZD 25% · USD 20% · CNY 10% · EUR 5%
-
-输出: 各类 MVL 交叉汇率
-"""
+from __future__ import annotations
 
 import csv
 import math
-import os
-import random
-from datetime import date, timedelta
-from typing import Optional
+from bisect import bisect_right
+from calendar import monthrange
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
 
 
 BASE_MVL_USD = 2.18
-BASKET_WEIGHTS = {"AUD": 0.40, "NZD": 0.25, "USD": 0.20, "CNY": 0.10, "EUR": 0.05}
+BASKET_WEIGHTS = {
+    "AUD": 0.40,
+    "NZD": 0.25,
+    "USD": 0.20,
+    "CNY": 0.10,
+    "EUR": 0.05,
+}
+
+_SOURCE_FILES = {
+    "AUD": ("aud_usd.csv", "EXUSAL", False),
+    "NZD": ("nzd_usd.csv", "EXUSNZ", False),
+    "CNY": ("usd_cny.csv", "EXCHUS", True),
+    "EUR": ("eur_usd.csv", "EXUSEU", False),
+}
 
 
-class ExchangeModel:
-    """从真实 FRED CSV 读取汇率，计算 MVL 篮子汇率。"""
+class FxDataError(RuntimeError):
+    """Raised when source exchange-rate data cannot satisfy the model contract."""
 
-    def __init__(self, data_dir: str = "data", seed: int = 42):
-        random.seed(seed)
-        base = os.path.dirname(os.path.dirname(__file__))
-        self._fx: dict[str, dict] = {}  # {"AUD": {date_key: rate}, ...}
-        self._mvl_usd = BASE_MVL_USD
 
-        pairs = [
-            ("AUD", "aud_usd.csv", "EXUSAL"),
-            ("NZD", "nzd_usd.csv", "EXUSNZ"),
-            ("CNY", "usd_cny.csv", "EXCHUS"),
-            ("EUR", "eur_usd.csv", "EXUSEU"),
-        ]
-        for cc, filename, fred_col in pairs:
-            self._fx[cc] = {}
-            path = os.path.join(base, data_dir, filename)
-            with open(path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    d = row.get("observation_date", row.get("DATE", ""))
-                    v = row.get(fred_col, "")
-                    if d and v and v != ".":
-                        try:
-                            self._fx[cc][d] = float(v)
-                        except ValueError:
-                            pass
+@dataclass(frozen=True)
+class _FxSeries:
+    month_keys: tuple[int, ...]
+    months: tuple[str, ...]
+    rates: tuple[float, ...]
 
-    def get_rate(self, currency: str, d: date) -> Optional[float]:
-        """Get exchange rate for currency on a given date (monthly)."""
-        key = d.strftime("%Y-%m-01")
-        return self._fx[currency].get(key)
+    def rate_for(self, d: date) -> tuple[float, str]:
+        index = bisect_right(self.month_keys, _month_key(d.year, d.month)) - 1
+        if index < 0:
+            raise FxDataError(
+                f"no exchange-rate observation exists on or before {d.isoformat()}"
+            )
+        return self.rates[index], self.months[index]
 
-    def get_or_previous(self, currency: str, d: date) -> float:
-        """Get rate, falling back to most recent known month."""
-        key = d.strftime("%Y-%m-01")
-        if key in self._fx[currency]:
-            return self._fx[currency][key]
-        for offset in range(1, 120):
-            prev = (d.replace(day=1) - timedelta(days=offset * 30)).strftime("%Y-%m-01")
-            if prev in self._fx[currency]:
-                return self._fx[currency][prev]
-        # Fallback to known baseline
-        fallbacks = {"AUD": 0.665, "NZD": 0.615, "CNY": 7.25, "EUR": 0.920}
-        return fallbacks.get(currency, 1.0)
 
-    def compute(self, d: date) -> dict:
-        """Compute all MVL cross-rates for a given date."""
-        aud = self.get_or_previous("AUD", d)
-        nzd = self.get_or_previous("NZD", d)
-        cny = self.get_or_previous("CNY", d)
-        eur = self.get_or_previous("EUR", d)
+@dataclass(frozen=True)
+class FxDataset:
+    """Canonical USD-per-currency exchange-rate series and calibration quotes."""
 
-        # AUD baseline for basket comparison
-        aud_base = 0.665
-        nzd_base = 0.615
-        cny_base = 7.25
-        eur_base = 0.920
+    _series: dict[str, _FxSeries]
+    base_rates: dict[str, float]
+    calibration_month: str
 
-        changes = {
-            "AUD": (aud / aud_base - 1.0),
-            "NZD": (nzd / nzd_base - 1.0),
-            "CNY": (cny_base / cny - 1.0),  # USDCNY: higher CNY = weaker CNY
-            "EUR": (eur / eur_base - 1.0),
+    @classmethod
+    def from_directory(cls, data_dir: Path) -> FxDataset:
+        """Load all exchange-rate sources and calibrate their latest common month."""
+        series = {
+            currency: _load_series(data_dir / filename, column, invert)
+            for currency, (filename, column, invert) in _SOURCE_FILES.items()
         }
 
-        basket_move = sum(BASKET_WEIGHTS[cc] * changes.get(cc, 0) for cc in BASKET_WEIGHTS if cc != "USD")
+        common_keys = set.intersection(
+            *(set(currency_series.month_keys) for currency_series in series.values())
+        )
+        if not common_keys:
+            raise FxDataError("exchange-rate series have no common calibration month")
 
-        raw_mvl = BASE_MVL_USD * (1.0 + basket_move)
-        intervention = 0.02 * (BASE_MVL_USD - self._mvl_usd)
-        noise = random.gauss(0, 0.0015)
+        calibration_key = max(common_keys)
+        calibration_month = _month_text(calibration_key)
+        base_rates = {"USD": 1.0}
+        for currency, currency_series in series.items():
+            index = bisect_right(currency_series.month_keys, calibration_key) - 1
+            if currency_series.month_keys[index] != calibration_key:
+                raise FxDataError(
+                    f"missing {currency} quote for calibration month {calibration_month}"
+                )
+            base_rates[currency] = currency_series.rates[index]
 
-        self._mvl_usd = max(1.80, min(2.80, raw_mvl + intervention + noise))
-        mvl = round(self._mvl_usd, 4)
+        return cls(series, base_rates, calibration_month)
 
-        return {
-            "mvl_per_usd": mvl,
-            "mvl_per_aud": round(mvl / aud, 4),
-            "mvl_per_nzd": round(mvl / nzd, 4),
-            "mvl_per_cny": round(mvl / cny, 4),
-            "mvl_per_eur": round(mvl / eur, 4),
-            "aud_usd": aud,
-            "nzd_usd": nzd,
-            "usd_cny": cny,
-            "eur_usd": eur,
-        }
+    def rates_for(self, d: date) -> tuple[dict[str, float], dict[str, str]]:
+        """Return the latest canonical quotes not later than ``d`` and source months."""
+        rates = {"USD": 1.0}
+        source_months = {}
+        for currency, series in self._series.items():
+            rate, source_month = series.rate_for(d)
+            rates[currency] = rate
+            source_months[currency] = source_month
+        return rates, source_months
 
 
-# ═══════════════════════════════════════════════════
-# TEST
-# ═══════════════════════════════════════════════════
-if __name__ == "__main__":
-    m = ExchangeModel(seed=42)
-    tests = [
-        date(2024, 12, 15),
-        date(2025, 6, 1),
-        date(2026, 7, 14),
-    ]
-    print(f"{'Date':<14} {'MVL/USD':>8} {'MVL/AUD':>8} {'AUD':>8} {'NZD':>8} {'CNY':>8} {'EUR':>8}")
-    print("-" * 60)
-    for d in tests:
-        r = m.compute(d)
-        print(f"{d}  {r['mvl_per_usd']:>8.4f}  {r['mvl_per_aud']:>8.4f}  {r['aud_usd']:>8.4f}  {r['nzd_usd']:>8.4f}  {r['usd_cny']:>8.4f}  {r['eur_usd']:>8.4f}")
+def exchange_step(
+    d: date,
+    previous_state: dict,
+    dataset: FxDataset,
+    rng,
+) -> tuple[dict, dict, list[dict]]:
+    """Return public exchange rates, explicit next state, and generated events."""
+    rates, source_months = dataset.rates_for(d)
+    log_move = sum(
+        BASKET_WEIGHTS[currency]
+        * math.log(rates[currency] / dataset.base_rates[currency])
+        for currency in BASKET_WEIGHTS
+    )
+    target = BASE_MVL_USD * math.exp(log_move)
+    previous = float(previous_state.get("mvl_per_usd", BASE_MVL_USD))
+    next_rate = previous + 0.12 * (target - previous) + rng.gauss(0.0, 0.0025)
+    next_rate = min(2.80, max(1.80, next_rate))
+
+    public = {
+        "mvl_per_usd": next_rate,
+        "mvl_per_aud": next_rate * rates["AUD"],
+        "mvl_per_nzd": next_rate * rates["NZD"],
+        "mvl_per_cny": next_rate * rates["CNY"],
+        "mvl_per_eur": next_rate * rates["EUR"],
+        "usd_per_aud": rates["AUD"],
+        "usd_per_nzd": rates["NZD"],
+        "usd_per_cny": rates["CNY"],
+        "usd_per_eur": rates["EUR"],
+        "source_months": source_months,
+        "staleness_days": max(
+            _staleness_days(d, source_month) for source_month in source_months.values()
+        ),
+    }
+    next_state = {"mvl_per_usd": next_rate}
+    return public, next_state, []
+
+
+def _load_series(path: Path, column: str, invert: bool) -> _FxSeries:
+    observations: dict[int, tuple[str, float]] = {}
+    try:
+        with path.open("r", encoding="utf-8", newline="") as source:
+            reader = csv.DictReader(source)
+            headers = reader.fieldnames or []
+            if "observation_date" not in headers or column not in headers:
+                raise FxDataError(
+                    f"exchange-rate data is missing required columns in {path}"
+                )
+
+            for line_number, row in enumerate(reader, start=2):
+                raw_value = row.get(column) or ""
+                if not raw_value or raw_value == ".":
+                    continue
+                month = _parse_month(row.get("observation_date") or "", path, line_number)
+                try:
+                    source_rate = float(raw_value)
+                except ValueError as exc:
+                    raise FxDataError(
+                        f"invalid exchange-rate observation at {path}:{line_number}"
+                    ) from exc
+                if not math.isfinite(source_rate) or source_rate <= 0.0:
+                    raise FxDataError(
+                        f"invalid exchange-rate observation at {path}:{line_number}"
+                    )
+                canonical_rate = 1.0 / source_rate if invert else source_rate
+                key = _month_key_from_text(month)
+                existing = observations.get(key)
+                if existing is not None and existing != (month, canonical_rate):
+                    raise FxDataError(f"conflicting observations for month {month} in {path}")
+                observations[key] = (month, canonical_rate)
+    except FxDataError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise FxDataError(f"cannot read exchange-rate data from {path}: {exc}") from exc
+
+    if not observations:
+        raise FxDataError(f"exchange-rate data contains no observations: {path}")
+    keys = tuple(sorted(observations))
+    return _FxSeries(
+        month_keys=keys,
+        months=tuple(observations[key][0] for key in keys),
+        rates=tuple(observations[key][1] for key in keys),
+    )
+
+
+def _parse_month(value: str, path: Path, line_number: int) -> str:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise FxDataError(
+            f"invalid exchange-rate month at {path}:{line_number}: {value!r}"
+        ) from exc
+    if parsed.day != 1 or parsed.isoformat() != value:
+        raise FxDataError(
+            f"invalid exchange-rate month at {path}:{line_number}: {value!r}"
+        )
+    return parsed.strftime("%Y-%m")
+
+
+def _month_key_from_text(value: str) -> int:
+    year, month = map(int, value.split("-"))
+    return _month_key(year, month)
+
+
+def _month_key(year: int, month: int) -> int:
+    return year * 12 + month
+
+
+def _month_text(key: int) -> str:
+    year, zero_based_month = divmod(key - 1, 12)
+    return f"{year:04d}-{zero_based_month + 1:02d}"
+
+
+def _staleness_days(d: date, source_month: str) -> int:
+    source_year, source_month_number = map(int, source_month.split("-"))
+    source_month_end = date(
+        source_year,
+        source_month_number,
+        monthrange(source_year, source_month_number)[1],
+    )
+    return max(0, (d - source_month_end).days)
