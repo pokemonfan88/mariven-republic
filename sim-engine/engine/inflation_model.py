@@ -1,243 +1,398 @@
-#!/usr/bin/env python3
-"""
-Mariven CPI Inflation Model — v1.0
-===================================
-月度消费者价格指数，基于加权篮子 + 上游模型联动。
+"""Pure CPI index model with monthly official publication."""
 
-篮子: 食品35% + 燃料18% + 住房15% + 交通12% + 其他20%
-上游: 天气模型、商品模型、汇率模型
-发布: 每月15日
+from __future__ import annotations
 
-输出:
-  state["economy"]["inflation_pct"] = 2.40
-  state["economy"]["fuel_95_price_mvl"] = 2.85
-"""
-
+import copy
 import math
-import random
-from datetime import date, timedelta
-from typing import Optional
+from calendar import monthrange
+from datetime import date
+from numbers import Real
 
 
-# ═══════════════════════════════════════════════════
-# CONSTANTS
-# ═══════════════════════════════════════════════════
-
-BASKET = {
-    "food":       0.35,
-    "fuel":       0.18,
-    "housing":    0.15,
-    "transport":  0.12,
-    "other":      0.20,
+BASKET_WEIGHTS = {
+    "food": 0.35,
+    "fuel": 0.18,
+    "housing": 0.15,
+    "transport": 0.12,
+    "other": 0.20,
 }
 
-# Baseline inflation per component (annual %)
-BASELINES = {
-    "food":       2.5,
-    "fuel":       3.0,
-    "housing":    2.0,
-    "transport":  2.0,
-    "other":      2.0,
+BASELINE_ANNUAL_RATES = {
+    "food": 2.5,
+    "fuel": 3.0,
+    "housing": 2.0,
+    "transport": 2.0,
+    "other": 2.0,
 }
 
-# Monthly weather normals for Katora (based on model calibration)
 MONTHLY_RAIN_NORM = {
-    1: 180, 2: 220, 3: 200, 4: 140, 5: 80, 6: 60,
-    7: 55, 8: 60, 9: 70, 10: 95, 11: 130, 12: 170,
+    1: 180.0, 2: 220.0, 3: 200.0, 4: 140.0,
+    5: 80.0, 6: 60.0, 7: 55.0, 8: 60.0,
+    9: 70.0, 10: 95.0, 11: 130.0, 12: 170.0,
 }
 
 MONTHLY_TEMP_NORM = {
-    1: 29, 2: 29, 3: 28, 4: 27, 5: 25, 6: 24,
-    7: 23, 8: 24, 9: 25, 10: 26, 11: 27, 12: 28,
+    1: 29.0, 2: 29.0, 3: 28.0, 4: 27.0,
+    5: 25.0, 6: 24.0, 7: 23.0, 8: 24.0,
+    9: 25.0, 10: 26.0, 11: 27.0, 12: 28.0,
 }
 
-# Fuel price formula: (brent_usd × mvl_per_usd) / 159 + tax + margin
-# Reference: brent=82.5, MVL=2.18 → pump ≈ 2.85 MVL/L
-FUEL_TAX_MVL = 1.02      # excise + carbon tax per litre
-FUEL_MARGIN_MVL = 0.70   # retail + distribution margin
+REFERENCE_SUGAR_USD_LB = 0.20
+REFERENCE_BRENT_USD_BARREL = 82.5
+REFERENCE_MVL_PER_USD = 2.18
+FUEL_TAX_MVL = 1.02
+FUEL_MARGIN_MVL = 0.70
 BARREL_TO_LITRE = 158.98
+MAX_DAILY_OBSERVATIONS = 62
+MAX_MONTHLY_HISTORY = 24
+MIN_COMPONENT_CHANGE_PCT = -2.0
+MAX_COMPONENT_CHANGE_PCT = 3.0
 
 
-# ═══════════════════════════════════════════════════
-# CPI MODEL CLASS
-# ═══════════════════════════════════════════════════
+def inflation_step(
+    d: date,
+    previous_state: dict,
+    weather: dict,
+    commodities: dict,
+    exchange: dict,
+    profile: dict,
+    rng,
+) -> tuple[dict, dict, list[dict]]:
+    """Return public CPI data, explicit next state, and release events."""
+    if not isinstance(d, date):
+        raise TypeError("d must be a date")
 
-class InflationModel:
-    """月度通胀计算器，依赖天气、商品、汇率上游模型。"""
+    next_state = copy.deepcopy(previous_state)
+    observation, current_components, petrol_95, diesel = _daily_observation(
+        d, weather, commodities, exchange, profile, rng,
+    )
+    next_state["daily_observations"] = _upsert_observation(
+        next_state.get("daily_observations", []), observation,
+    )
+    next_state["monthly_history"] = copy.deepcopy(
+        list(next_state.get("monthly_history", []))[-MAX_MONTHLY_HISTORY:]
+    )
 
-    def __init__(self, seed: int = 42):
-        random.seed(seed)
-        self._cpi = 2.40          # current CPI (annual %)
-        self._prev_cpi = 2.40     # last month's published CPI
-        self._fuel_95 = 2.85      # pump price MVL/L
-        self._fuel_diesel = 2.35
-        self._last_date: Optional[date] = None
-        self._food_history: list[float] = []  # rolling 30-day food delta
-        self._last_published_month: Optional[int] = None  # track when CPI was last "released"
+    events: list[dict] = []
+    release_date = next_state.get("last_release_date")
+    output_components = current_components
+    is_new_release = d.day == 15 and release_date != d.isoformat()
+    if is_new_release:
+        output_components = _publish_previous_month(
+            d, next_state, current_components,
+        )
+        release_date = d.isoformat()
+        next_state["last_release_date"] = release_date
+        next_state["published_components"] = copy.deepcopy(output_components)
+        events.append({
+            "type": "economy",
+            "severity": "info",
+            "text": (
+                "Statistics Bureau released the monthly CPI: "
+                f"{next_state['published_yoy_pct']:+.2f}% year over year"
+            ),
+            "release_date": release_date,
+            "index": next_state["published_index"],
+            "mom_pct": next_state["published_mom_pct"],
+            "yoy_pct": next_state["published_yoy_pct"],
+        })
+    elif d.day == 15 and release_date == d.isoformat():
+        output_components = copy.deepcopy(
+            next_state.get("published_components", current_components)
+        )
 
-    def compute_pump_price(self, brent_usd: float, mvl_per_usd: float) -> tuple[float, float]:
-        """Calculate retail fuel price from Brent crude + exchange rate."""
-        crude_cost_mvl = (brent_usd * mvl_per_usd) / BARREL_TO_LITRE
-        petrol_95 = round(crude_cost_mvl + FUEL_TAX_MVL + FUEL_MARGIN_MVL, 2)
-        diesel = round(crude_cost_mvl + FUEL_TAX_MVL * 0.4 + FUEL_MARGIN_MVL * 0.7, 2)
-        return petrol_95, diesel
-
-    def food_inflation(self, weather: dict) -> float:
-        """
-        Calculate food inflation from accumulated weather stress.
-        Uses rolling 30-day average of daily weather deviation.
-        """
-        katora = weather.get("katora", {})
-        rain_mm = katora.get("rainfall_mm", 0)
-        temp = katora.get("temp_high", 25)
-        month = self._last_date.month if self._last_date else 7
-
-        rain_norm = MONTHLY_RAIN_NORM.get(month, 80)
-        temp_norm = MONTHLY_TEMP_NORM.get(month, 26)
-
-        # Daily food stress (this is tiny per day, accumulates over 30 days)
-        rain_dev = (rain_mm - rain_norm) / max(rain_norm, 1)
-        if rain_dev < 0:
-            rain_impact = abs(rain_dev) * 0.08  # drought impact per day
-        else:
-            rain_impact = min(rain_dev * 0.02, 0.03)
-
-        temp_dev = (temp - temp_norm) * 0.02
-
-        daily_delta = rain_impact + temp_dev
-
-        # Rolling 30-day average
-        self._food_history.append(daily_delta)
-        if len(self._food_history) > 30:
-            self._food_history.pop(0)
-        avg_delta = sum(self._food_history) / len(self._food_history)
-
-        return BASELINES["food"] + avg_delta
-
-    def fuel_inflation(self, brent_usd: float, mvl_per_usd: float) -> float:
-        """Fuel inflation driven by crude oil and exchange rate changes."""
-        # Reference: brent=82.5, MVL=2.18 → base pump price ≈ 2.85
-        base_pump = (82.5 * 2.18) / BARREL_TO_LITRE + FUEL_TAX_MVL + FUEL_MARGIN_MVL
-        current_pump = (brent_usd * mvl_per_usd) / BARREL_TO_LITRE + FUEL_TAX_MVL + FUEL_MARGIN_MVL
-        return BASELINES["fuel"] + (current_pump - base_pump) / base_pump * 100
-
-    def housing_inflation(self, urban_rate: float = 48.0) -> float:
-        """Housing inflation: driven by urbanization + import costs."""
-        # Baseline urbanization 48% → if growing, housing pressure increases
-        urban_pressure = max(0, urban_rate - 48.0) * 0.08
-        # Import cost pass-through (cement, steel from AUD zone)
-        import_pass = random.gauss(0, 0.15)
-        return BASELINES["housing"] + urban_pressure + import_pass
-
-    def transport_inflation(self, fuel_inf: float) -> float:
-        """Transport inflation: 80% driven by fuel costs."""
-        return BASELINES["transport"] + (fuel_inf - BASELINES["fuel"]) * 0.80
-
-    def tick(self, d: date,
-             weather: Optional[dict] = None,
-             commodities: Optional[dict] = None,
-             exchange: Optional[dict] = None) -> dict:
-        """
-        Compute monthly CPI.
-
-        Args:
-            d: current date
-            weather: weather model output (katora dict)
-            commodities: commodity model output (sugar_usd_lb, gold_usd_oz, brent_usd_barrel)
-            exchange: exchange model output (mvl_per_usd, aud_usd, ...)
-        """
-        self._last_date = d
-
-        brent = commodities.get("brent_usd_barrel", 82.5) if commodities else 82.5
-        mvl = exchange.get("mvl_per_usd", 2.18) if exchange else 2.18
-
-        food = self.food_inflation(weather or {})
-        fuel = self.fuel_inflation(brent, mvl)
-        housing = self.housing_inflation()
-        transport = self.transport_inflation(fuel)
-        other = BASELINES["other"] + random.gauss(0, 0.1)
-
-        cpi = (BASKET["food"] * food +
-               BASKET["fuel"] * fuel +
-               BASKET["housing"] * housing +
-               BASKET["transport"] * transport +
-               BASKET["other"] * other)
-
-        # Apply smoothing (CPI doesn't jump wildly in one month)
-        cpi = 0.85 * self._cpi + 0.15 * cpi + random.gauss(0, 0.02)
-        self._cpi = round(cpi, 2)
-
-        petrol_95, diesel = self.compute_pump_price(brent, mvl)
-        self._fuel_95 = petrol_95
-        self._fuel_diesel = diesel
-
-        # ── Monthly release logic ──
-        # CPI is "published" on the 15th of each month by Statistics Bureau
-        is_release_day = (d.day == 15)
-        if is_release_day and self._last_published_month != d.month:
-            self._prev_cpi = self._cpi
-            self._last_published_month = d.month
-
-        cpi_yoy = round(self._cpi - self._prev_cpi, 2)  # month-over-month change
-
-        return {
-            "inflation_pct": self._cpi,
-            "inflation_prev_month": self._prev_cpi,
-            "inflation_mom_change": cpi_yoy,
-            "is_release_day": is_release_day,
-            "food_inflation": round(food, 2),
-            "fuel_inflation": round(fuel, 2),
-            "housing_inflation": round(housing, 2),
-            "transport_inflation": round(transport, 2),
-            "other_inflation": round(other, 2),
-            "fuel_95_price_mvl": self._fuel_95,
-            "fuel_diesel_price_mvl": self._fuel_diesel,
-        }
-
-
-# ═══════════════════════════════════════════════════
-# TEST
-# ═══════════════════════════════════════════════════
-if __name__ == "__main__":
-    m = InflationModel(seed=42)
-
-    # Simulate a dry July day
-    weather_sample = {
-        "katora": {"rainfall_mm": 10, "temp_high": 27, "condition": "晴"},
+    published_index = _finite_real(
+        next_state.get("published_index", 100.0), "published_index"
+    )
+    published_mom = _finite_real(
+        next_state.get("published_mom_pct", 0.0), "published_mom_pct"
+    )
+    published_yoy = _finite_real(
+        next_state.get("published_yoy_pct", 0.0), "published_yoy_pct"
+    )
+    public = {
+        "index": published_index,
+        "mom_pct": published_mom,
+        "yoy_pct": published_yoy,
+        "is_release_day": d.day == 15,
+        "release_date": release_date,
+        "components": output_components,
+        "fuel_95_price_mvl": petrol_95,
+        "fuel_diesel_price_mvl": diesel,
+        "history": copy.deepcopy(next_state["monthly_history"]),
     }
-    commod_sample = {"brent_usd_barrel": 82.5}
-    exchange_sample = {"mvl_per_usd": 2.18}
+    return public, next_state, events
 
-    print("═" * 60)
-    print("MARIVEN CPI MODEL — 基准测试 (2026年7月)")
-    print("═" * 60)
-    r = m.tick(date(2026, 7, 14), weather_sample, commod_sample, exchange_sample)
-    print(f"  总CPI: {r['inflation_pct']}% | 上月: {r['inflation_prev_month']}% | 月环比: {r['inflation_mom_change']:+.2f}%")
-    print(f"  发布日: {'是 ✅' if r['is_release_day'] else '否 (每月15日发布)'}")
-    print(f"  食品: {r['food_inflation']}%  | 燃料: {r['fuel_inflation']}%  | 住房: {r['housing_inflation']}%")
-    print(f"  交通: {r['transport_inflation']}%  | 其他: {r['other_inflation']}%")
-    print(f"  95#汽油: ${r['fuel_95_price_mvl']} MVL/L  | 柴油: ${r['fuel_diesel_price_mvl']} MVL/L")
 
-    print()
-    print("情景1: 干旱7月 (降雨5mm, 温度29°C)")
-    w = {"katora": {"rainfall_mm": 5, "temp_high": 29, "condition": "晴"}}
-    r = m.tick(date(2026, 7, 15), w, commod_sample, exchange_sample)
-    print(f"  总CPI: {r['inflation_pct']}% 食品: {r['food_inflation']}% ← 干旱推高食品")
+def _daily_observation(
+    d: date,
+    weather: dict,
+    commodities: dict,
+    exchange: dict,
+    profile: dict,
+    rng,
+) -> tuple[dict, dict, float, float]:
+    katora = weather.get("katora", {})
+    rainfall = _finite_real(katora.get("rainfall_mm", 0.0), "rainfall_mm")
+    temperature = _finite_real(
+        katora.get("temp_high", MONTHLY_TEMP_NORM[d.month]), "temp_high"
+    )
+    sugar = _finite_real(
+        commodities.get("sugar_usd_lb", REFERENCE_SUGAR_USD_LB),
+        "sugar_usd_lb",
+    )
+    brent = _finite_real(
+        commodities.get("brent_usd_barrel", REFERENCE_BRENT_USD_BARREL),
+        "brent_usd_barrel",
+    )
+    mvl_per_usd = _positive_finite_real(
+        exchange.get("mvl_per_usd", REFERENCE_MVL_PER_USD), "mvl_per_usd"
+    )
+    urbanization = _finite_real(
+        profile.get("demographics", {}).get("urbanization_pct", 48.0),
+        "urbanization_pct",
+    )
 
-    print()
-    print("情景2: 油价飙升 (布伦特 $95)")
-    c = {"brent_usd_barrel": 95.0}
-    r = m.tick(date(2026, 7, 16), weather_sample, c, exchange_sample)
-    print(f"  总CPI: {r['inflation_pct']}% 燃料: {r['fuel_inflation']}% 汽油: ${r['fuel_95_price_mvl']} ← 油价传导")
+    rainfall_normal = (
+        MONTHLY_RAIN_NORM[d.month] / monthrange(d.year, d.month)[1]
+    )
+    rain_deviation = (rainfall - rainfall_normal) / rainfall_normal
+    temperature_deviation = temperature - MONTHLY_TEMP_NORM[d.month]
+    if rain_deviation < 0.0:
+        rain_pressure = -rain_deviation * 0.10
+    else:
+        rain_pressure = min(rain_deviation * 0.02, 0.30)
+    weather_pressure = _bounded(
+        rain_pressure + temperature_deviation * 0.02, -0.5, 1.0
+    )
 
-    print()
-    print("情景3: 汇率贬值 (MVL 2.35/USD)")
-    e = {"mvl_per_usd": 2.35}
-    r = m.tick(date(2026, 7, 17), weather_sample, commod_sample, e)
-    print(f"  总CPI: {r['inflation_pct']}% 汽油: ${r['fuel_95_price_mvl']} ← 进口成本上升")
+    sugar_pressure = _bounded(
+        (sugar / REFERENCE_SUGAR_USD_LB - 1.0) * 0.20, -0.5, 0.8
+    )
+    import_pressure = _bounded(
+        (mvl_per_usd / REFERENCE_MVL_PER_USD - 1.0) * 2.0, -0.6, 0.8
+    )
+    petrol_95, diesel = _pump_prices(brent, mvl_per_usd)
+    reference_petrol, _ = _pump_prices(
+        REFERENCE_BRENT_USD_BARREL, REFERENCE_MVL_PER_USD
+    )
+    brent_pressure = _bounded(
+        (petrol_95 / reference_petrol - 1.0) * 15.0, -1.5, 2.0
+    )
 
-    print()
-    print("情景4: 15日发布日 (统计局公布上月CPI)")
-    r = m.tick(date(2026, 8, 15), weather_sample, commod_sample, exchange_sample)
-    print(f"  总CPI: {r['inflation_pct']}% | 上月: {r['inflation_prev_month']}% | 环比: {r['inflation_mom_change']:+.2f}%")
-    print(f"  发布日: {'是 ✅ 统计局发布新闻' if r['is_release_day'] else '否'}")
+    food_rate = _component_bound(
+        BASELINE_ANNUAL_RATES["food"] / 12.0
+        + weather_pressure + sugar_pressure + import_pressure * 0.20
+    )
+    fuel_rate = _component_bound(
+        BASELINE_ANNUAL_RATES["fuel"] / 12.0 + brent_pressure
+    )
+    housing_rate = _component_bound(
+        BASELINE_ANNUAL_RATES["housing"] / 12.0
+        + max(0.0, urbanization - 48.0) * 0.005
+        + import_pressure * 0.25
+        + _finite_real(rng.gauss(0.0, 0.015), "housing RNG pressure")
+    )
+    transport_rate = _component_bound(
+        BASELINE_ANNUAL_RATES["transport"] / 12.0
+        + (fuel_rate - BASELINE_ANNUAL_RATES["fuel"] / 12.0) * 0.55
+    )
+    other_rate = _component_bound(
+        BASELINE_ANNUAL_RATES["other"] / 12.0
+        + import_pressure * 0.12
+        + _finite_real(rng.gauss(0.0, 0.01), "other RNG pressure")
+    )
+
+    rates = {
+        "food": food_rate,
+        "fuel": fuel_rate,
+        "housing": housing_rate,
+        "transport": transport_rate,
+        "other": other_rate,
+    }
+    components = _component_output(rates)
+    components["food"].update({
+        "weather_pressure": _rounded(weather_pressure),
+        "sugar_pressure": _rounded(sugar_pressure),
+        "import_pressure": _rounded(import_pressure * 0.20),
+    })
+    components["fuel"].update({
+        "brent_pressure": _rounded(brent_pressure),
+        "import_pressure": _rounded(import_pressure),
+    })
+    components["housing"]["import_pressure"] = _rounded(
+        import_pressure * 0.25
+    )
+    components["transport"]["fuel_pass_through"] = _rounded(
+        (fuel_rate - BASELINE_ANNUAL_RATES["fuel"] / 12.0) * 0.55
+    )
+    components["other"]["import_pressure"] = _rounded(
+        import_pressure * 0.12
+    )
+
+    observation = {
+        "date": d.isoformat(),
+        "rainfall_mm": rainfall,
+        "rainfall_normal_mm": rainfall_normal,
+        "temperature_deviation_c": temperature_deviation,
+        "sugar_usd_lb": sugar,
+        "brent_usd_barrel": brent,
+        "mvl_per_usd": mvl_per_usd,
+        "component_pressures": {
+            name: details["rate_pct"] for name, details in components.items()
+        },
+    }
+    return observation, components, petrol_95, diesel
+
+
+def _publish_previous_month(
+    d: date,
+    state: dict,
+    current_components: dict,
+) -> dict:
+    target_year, target_month = _shift_month(d.year, d.month, -1)
+    target_prefix = f"{target_year:04d}-{target_month:02d}-"
+    observations = [
+        observation for observation in state["daily_observations"]
+        if str(observation.get("date", "")).startswith(target_prefix)
+    ]
+
+    component_changes = {}
+    for name in BASKET_WEIGHTS:
+        values = []
+        for observation in observations:
+            pressures = observation.get("component_pressures", {})
+            if name in pressures:
+                values.append(_finite_real(pressures[name], f"{name} pressure"))
+        if values:
+            change = math.fsum(values) / len(values)
+        else:
+            change = BASELINE_ANNUAL_RATES[name] / 12.0
+        component_changes[name] = _component_bound(change)
+
+    monthly_change = math.fsum(
+        BASKET_WEIGHTS[name] * component_changes[name]
+        for name in BASKET_WEIGHTS
+    )
+    previous_index = _positive_finite_real(
+        state.get("published_index", 100.0), "published_index"
+    )
+    new_index = _positive_finite_real(
+        previous_index * (1.0 + monthly_change / 100.0), "new CPI index"
+    )
+    mom_pct = (new_index / previous_index - 1.0) * 100.0
+    year_ago_index = _index_for_month(
+        state["monthly_history"], target_year - 1, target_month
+    )
+    if year_ago_index is None:
+        prior_yoy = _finite_real(
+            state.get("published_yoy_pct", 0.0), "published_yoy_pct"
+        )
+        denominator = 1.0 + prior_yoy / 100.0
+        year_ago_index = (
+            previous_index / denominator
+            if denominator > 0.0 else previous_index
+        )
+    yoy_pct = (new_index / year_ago_index - 1.0) * 100.0
+
+    published_components = _component_output(component_changes)
+    for name, details in current_components.items():
+        for key, value in details.items():
+            if key not in ("rate_pct", "contribution_pct"):
+                published_components[name][key] = value
+
+    month_end = date(
+        target_year, target_month, monthrange(target_year, target_month)[1]
+    )
+    record = {
+        "date": month_end.isoformat(),
+        "index": _rounded(new_index, 6),
+        "mom_pct": _rounded(mom_pct),
+        "yoy_pct": _rounded(yoy_pct),
+        "components": {
+            name: _rounded(change) for name, change in component_changes.items()
+        },
+        "release_date": d.isoformat(),
+        "source": "monthly_release",
+    }
+    state["monthly_history"] = (
+        list(state["monthly_history"]) + [record]
+    )[-MAX_MONTHLY_HISTORY:]
+    state["published_index"] = record["index"]
+    state["published_mom_pct"] = record["mom_pct"]
+    state["published_yoy_pct"] = record["yoy_pct"]
+    return published_components
+
+
+def _component_output(rates: dict[str, float]) -> dict[str, dict[str, float]]:
+    return {
+        name: {
+            "rate_pct": _rounded(rate),
+            "contribution_pct": _rounded(BASKET_WEIGHTS[name] * rate),
+        }
+        for name, rate in rates.items()
+    }
+
+
+def _upsert_observation(history: list, observation: dict) -> list[dict]:
+    observation_date = observation["date"]
+    retained = [
+        copy.deepcopy(item) for item in history
+        if item.get("date") != observation_date
+    ]
+    retained.append(observation)
+    retained.sort(key=lambda item: str(item.get("date", "")))
+    return retained[-MAX_DAILY_OBSERVATIONS:]
+
+
+def _index_for_month(history: list, year: int, month: int) -> float | None:
+    prefix = f"{year:04d}-{month:02d}-"
+    matches = [
+        item for item in history
+        if str(item.get("date", "")).startswith(prefix)
+    ]
+    if not matches:
+        return None
+    return _positive_finite_real(matches[-1].get("index"), "historical CPI index")
+
+
+def _shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
+    month_index = year * 12 + month - 1 + offset
+    shifted_year, zero_based_month = divmod(month_index, 12)
+    return shifted_year, zero_based_month + 1
+
+
+def _pump_prices(brent_usd: float, mvl_per_usd: float) -> tuple[float, float]:
+    crude_cost_mvl = brent_usd * mvl_per_usd / BARREL_TO_LITRE
+    petrol_95 = crude_cost_mvl + FUEL_TAX_MVL + FUEL_MARGIN_MVL
+    diesel = crude_cost_mvl + FUEL_TAX_MVL * 0.4 + FUEL_MARGIN_MVL * 0.7
+    return round(petrol_95, 2), round(diesel, 2)
+
+
+def _component_bound(value: float) -> float:
+    return _bounded(value, MIN_COMPONENT_CHANGE_PCT, MAX_COMPONENT_CHANGE_PCT)
+
+
+def _bounded(value: float, lower: float, upper: float) -> float:
+    value = _finite_real(value, "derived CPI value")
+    return min(upper, max(lower, value))
+
+
+def _rounded(value: float, digits: int = 4) -> float:
+    return round(_finite_real(value, "CPI output"), digits)
+
+
+def _finite_real(value, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{label} must be a finite real number")
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ValueError(f"{label} must be a finite real number")
+    return converted
+
+
+def _positive_finite_real(value, label: str) -> float:
+    converted = _finite_real(value, label)
+    if converted <= 0.0:
+        raise ValueError(f"{label} must be a finite positive real number")
+    return converted
