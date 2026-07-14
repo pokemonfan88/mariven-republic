@@ -1,4 +1,5 @@
 import copy
+import json
 import math
 from calendar import monthrange
 from collections.abc import Mapping
@@ -131,6 +132,44 @@ def validate_state(state: Mapping[str, Any]) -> None:
 
     if not isinstance(state.get("events_today"), list):
         _fail("state.events_today", "expected a list")
+
+    _validate_nested_numbers(state, "state", set())
+    try:
+        json.dumps(state, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        _fail("state", f"not JSON serializable: {exc}")
+
+
+def _validate_nested_numbers(
+    value: Any,
+    path: str,
+    seen: set[int],
+) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        _fail(path, "expected a finite number")
+
+    if isinstance(value, Mapping):
+        identity = id(value)
+        if identity in seen:
+            return
+        seen.add(identity)
+        for key, nested in value.items():
+            _validate_nested_numbers(key, f"{path}.<key>", seen)
+            nested_path = (
+                f"{path}.{key}"
+                if isinstance(key, str)
+                else f"{path}[{key!r}]"
+            )
+            _validate_nested_numbers(nested, nested_path, seen)
+        return
+
+    if isinstance(value, (list, tuple)):
+        identity = id(value)
+        if identity in seen:
+            return
+        seen.add(identity)
+        for index, nested in enumerate(value):
+            _validate_nested_numbers(nested, f"{path}[{index}]", seen)
 
 
 def migrate_state(raw: Mapping[str, Any], *,

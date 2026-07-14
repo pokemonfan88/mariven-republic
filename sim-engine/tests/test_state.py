@@ -124,6 +124,27 @@ class StateTests(unittest.TestCase):
                         StateValidationError, rf"^state\.economy\.{field}"):
                     validate_state(broken)
 
+    def test_validate_rejects_non_finite_nested_model_value(self):
+        broken = migrate_state(V1)
+        broken["model_state"]["inflation"]["monthly_history"][0][
+            "index"
+        ] = float("nan")
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.inflation\.monthly_history\[0\]\.index",
+        ):
+            validate_state(broken)
+
+    def test_validate_wraps_json_serialization_errors(self):
+        broken = migrate_state(V1)
+        broken["model_state"]["gdp"] = {"unsupported": object()}
+
+        with self.assertRaisesRegex(
+            StateValidationError, r"^state: not JSON serializable"
+        ):
+            validate_state(broken)
+
     def test_migration_preserves_current_date(self):
         migrated = migrate_state(V1)
         self.assertEqual(date.fromisoformat(migrated["date"]), date(2026, 8, 11))

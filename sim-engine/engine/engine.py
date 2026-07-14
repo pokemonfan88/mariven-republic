@@ -94,10 +94,6 @@ def tick(
         resources.nation_profile,
         make_rng(base_seed, schema_version, d, "inflation"),
     )
-    deaths, general_events = events_step(
-        d, prepared, weather, event_rng
-    )
-
     next_state["date"] = d.isoformat()
     next_state["weather"] = weather
 
@@ -110,13 +106,19 @@ def tick(
     economy["fuel_diesel_price_mvl"] = cpi["fuel_diesel_price_mvl"]
     economy["inflation_pct"] = cpi["yoy_pct"]
 
-    next_state["deaths_today"] = deaths
-    next_state["model_state"] = {
+    next_model_state = copy.deepcopy(prepared["model_state"])
+    next_model_state.update({
         "weather": weather_state,
         "exchange": exchange_state,
         "commodities": commodity_state,
         "inflation": inflation_state,
-    }
+    })
+    next_state["model_state"] = next_model_state
+
+    deaths, general_events = events_step(
+        d, next_state, weather, event_rng
+    )
+    next_state["deaths_today"] = deaths
 
     combined_events = (
         weather_events
