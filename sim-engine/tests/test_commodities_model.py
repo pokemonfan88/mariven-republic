@@ -37,6 +37,31 @@ class CommodityTests(unittest.TestCase):
             with self.assertRaisesRegex(DataSourceError, "sugar_usd_kg"):
                 CommoditySeries.from_csv(path)
 
+    def test_non_finite_prices_fail(self):
+        cases = (
+            ("sugar_usd_kg", "nan"),
+            ("gold_usd_oz", "inf"),
+            ("brent_usd_bbl", "-inf"),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.csv"
+            for column, invalid_value in cases:
+                with self.subTest(column=column, value=invalid_value):
+                    values = {
+                        "sugar_usd_kg": "0.4364",
+                        "gold_usd_oz": "2648.01",
+                        "brent_usd_bbl": "73.833",
+                    }
+                    values[column] = invalid_value
+                    path.write_text(
+                        "date,sugar_usd_kg,gold_usd_oz,brent_usd_bbl\n"
+                        f"2024-12,{values['sugar_usd_kg']},{values['gold_usd_oz']},"
+                        f"{values['brent_usd_bbl']}\n",
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(DataSourceError, column):
+                        CommoditySeries.from_csv(path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from bisect import bisect_right
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
+from math import isfinite
 from pathlib import Path
 
 
@@ -111,11 +112,32 @@ def _parse_row(row: dict[str, str | None], path: Path, line_number: int) -> Comm
     try:
         month = row["date"] or ""
         _month_key_from_text(month)
+        sugar_usd_kg = float(row["sugar_usd_kg"] or "")
+        gold_usd_oz = float(row["gold_usd_oz"] or "")
+        brent_usd_barrel = float(row["brent_usd_bbl"] or "")
+        for column, value in (
+            ("sugar_usd_kg", sugar_usd_kg),
+            ("gold_usd_oz", gold_usd_oz),
+            ("brent_usd_bbl", brent_usd_barrel),
+        ):
+            if not isfinite(value):
+                raise DataSourceError(
+                    f"invalid commodity observation at {path}:{line_number}: "
+                    f"{column} must be finite"
+                )
+
+        sugar_usd_lb = sugar_usd_kg * KG_TO_LB
+        if not isfinite(sugar_usd_lb):
+            raise DataSourceError(
+                f"invalid commodity observation at {path}:{line_number}: "
+                "sugar_usd_lb must be finite after conversion"
+            )
+
         return CommodityObservation(
             month=month,
-            sugar_usd_lb=float(row["sugar_usd_kg"] or "") * KG_TO_LB,
-            gold_usd_oz=float(row["gold_usd_oz"] or ""),
-            brent_usd_barrel=float(row["brent_usd_bbl"] or ""),
+            sugar_usd_lb=sugar_usd_lb,
+            gold_usd_oz=gold_usd_oz,
+            brent_usd_barrel=brent_usd_barrel,
         )
     except (TypeError, ValueError) as exc:
         raise DataSourceError(
