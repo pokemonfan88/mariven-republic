@@ -64,7 +64,8 @@ def inflation_step(
 
     next_state = copy.deepcopy(previous_state)
     observation, current_components, petrol_95, diesel = _daily_observation(
-        d, weather, commodities, exchange, profile, rng,
+        d, next_state.get("daily_observations", []), weather, commodities,
+        exchange, profile, rng,
     )
     next_state["daily_observations"] = _upsert_observation(
         next_state.get("daily_observations", []), observation,
@@ -75,12 +76,12 @@ def inflation_step(
 
     events: list[dict] = []
     release_date = next_state.get("last_release_date")
-    output_components = current_components
+    output_components = copy.deepcopy(
+        next_state.get("published_components", current_components)
+    )
     is_new_release = d.day == 15 and release_date != d.isoformat()
     if is_new_release:
-        output_components = _publish_previous_month(
-            d, next_state, current_components,
-        )
+        output_components = _publish_previous_month(d, next_state)
         release_date = d.isoformat()
         next_state["last_release_date"] = release_date
         next_state["published_components"] = copy.deepcopy(output_components)
@@ -96,11 +97,6 @@ def inflation_step(
             "mom_pct": next_state["published_mom_pct"],
             "yoy_pct": next_state["published_yoy_pct"],
         })
-    elif d.day == 15 and release_date == d.isoformat():
-        output_components = copy.deepcopy(
-            next_state.get("published_components", current_components)
-        )
-
     published_index = _finite_real(
         next_state.get("published_index", 100.0), "published_index"
     )
@@ -126,6 +122,7 @@ def inflation_step(
 
 def _daily_observation(
     d: date,
+    previous_observations: list,
     weather: dict,
     commodities: dict,
     exchange: dict,
@@ -193,9 +190,16 @@ def _daily_observation(
         + import_pressure * 0.25
         + _finite_real(rng.gauss(0.0, 0.015), "housing RNG pressure")
     )
+    lagged_fuel_rate = _latest_prior_component_rate(
+        previous_observations, d, "fuel",
+        BASELINE_ANNUAL_RATES["fuel"] / 12.0,
+    )
+    transport_fuel_pass_through = (
+        lagged_fuel_rate - BASELINE_ANNUAL_RATES["fuel"] / 12.0
+    ) * 0.55
     transport_rate = _component_bound(
         BASELINE_ANNUAL_RATES["transport"] / 12.0
-        + (fuel_rate - BASELINE_ANNUAL_RATES["fuel"] / 12.0) * 0.55
+        + transport_fuel_pass_through
     )
     other_rate = _component_bound(
         BASELINE_ANNUAL_RATES["other"] / 12.0
@@ -224,7 +228,7 @@ def _daily_observation(
         import_pressure * 0.25
     )
     components["transport"]["fuel_pass_through"] = _rounded(
-        (fuel_rate - BASELINE_ANNUAL_RATES["fuel"] / 12.0) * 0.55
+        transport_fuel_pass_through
     )
     components["other"]["import_pressure"] = _rounded(
         import_pressure * 0.12
@@ -241,6 +245,7 @@ def _daily_observation(
         "component_pressures": {
             name: details["rate_pct"] for name, details in components.items()
         },
+        "component_details": copy.deepcopy(components),
     }
     return observation, components, petrol_95, diesel
 
@@ -248,7 +253,6 @@ def _daily_observation(
 def _publish_previous_month(
     d: date,
     state: dict,
-    current_components: dict,
 ) -> dict:
     target_year, target_month = _shift_month(d.year, d.month, -1)
     target_prefix = f"{target_year:04d}-{target_month:02d}-"
@@ -296,10 +300,10 @@ def _publish_previous_month(
     yoy_pct = (new_index / year_ago_index - 1.0) * 100.0
 
     published_components = _component_output(component_changes)
-    for name, details in current_components.items():
-        for key, value in details.items():
-            if key not in ("rate_pct", "contribution_pct"):
-                published_components[name][key] = value
+    for name in BASKET_WEIGHTS:
+        published_components[name].update(
+            _aggregate_ancillary_fields(observations, name)
+        )
 
     month_end = date(
         target_year, target_month, monthrange(target_year, target_month)[1]
@@ -315,9 +319,13 @@ def _publish_previous_month(
         "release_date": d.isoformat(),
         "source": "monthly_release",
     }
-    state["monthly_history"] = (
-        list(state["monthly_history"]) + [record]
-    )[-MAX_MONTHLY_HISTORY:]
+    history = [
+        item for item in state["monthly_history"]
+        if not str(item.get("date", "")).startswith(target_prefix)
+    ]
+    history.append(record)
+    history.sort(key=lambda item: str(item.get("date", "")))
+    state["monthly_history"] = history[-MAX_MONTHLY_HISTORY:]
     state["published_index"] = record["index"]
     state["published_mom_pct"] = record["mom_pct"]
     state["published_yoy_pct"] = record["yoy_pct"]
@@ -332,6 +340,49 @@ def _component_output(rates: dict[str, float]) -> dict[str, dict[str, float]]:
         }
         for name, rate in rates.items()
     }
+
+
+def _aggregate_ancillary_fields(
+    observations: list[dict],
+    component_name: str,
+) -> dict[str, float]:
+    values_by_field: dict[str, list[float]] = {}
+    for observation in observations:
+        details = observation.get("component_details", {}).get(
+            component_name, {}
+        )
+        for field, value in details.items():
+            if field not in ("rate_pct", "contribution_pct"):
+                values_by_field.setdefault(field, []).append(
+                    _finite_real(value, f"{component_name} {field}")
+                )
+    return {
+        field: _rounded(math.fsum(values) / len(values))
+        for field, values in values_by_field.items()
+    }
+
+
+def _latest_prior_component_rate(
+    observations: list[dict],
+    d: date,
+    component_name: str,
+    fallback: float,
+) -> float:
+    current_date = d.isoformat()
+    prior_observations = [
+        observation for observation in observations
+        if str(observation.get("date", "")) < current_date
+        and component_name in observation.get("component_pressures", {})
+    ]
+    if not prior_observations:
+        return _finite_real(fallback, f"neutral {component_name} pressure")
+    latest = max(
+        prior_observations, key=lambda observation: observation["date"]
+    )
+    return _finite_real(
+        latest["component_pressures"][component_name],
+        f"lagged {component_name} pressure",
+    )
 
 
 def _upsert_observation(history: list, observation: dict) -> list[dict]:

@@ -52,6 +52,53 @@ class InflationTests(unittest.TestCase):
         self.assertEqual(state2["last_release_date"], "2026-08-15")
         self.assertEqual(events[0]["type"], "economy")
 
+    def test_release_holds_official_components_and_uses_target_month_details(self):
+        july30, july30_state, _ = self.step(date(2026, 7, 30), self.state)
+        july31, july_state, _ = inflation_step(
+            date(2026, 7, 31), july30_state,
+            {"katora": {"rainfall_mm": 0.0, "temp_high": 30.0}},
+            {"sugar_usd_lb": 0.30, "brent_usd_barrel": 90.0},
+            {"mvl_per_usd": 2.35, "basket_index": 1.0}, self.profile,
+            random.Random("2026-07-31"),
+        )
+        release_weather = {
+            "katora": {"rainfall_mm": 100.0, "temp_high": 40.0}
+        }
+        release_commodities = {
+            "sugar_usd_lb": 0.50, "brent_usd_barrel": 120.0,
+        }
+        release_exchange = {"mvl_per_usd": 2.70, "basket_index": 1.0}
+        released, released_state, _ = inflation_step(
+            date(2026, 8, 15), july_state, release_weather,
+            release_commodities, release_exchange, self.profile,
+            random.Random("2026-08-15"),
+        )
+
+        next_day, _, _ = inflation_step(
+            date(2026, 8, 16), released_state,
+            {"katora": {"rainfall_mm": 0.0, "temp_high": 10.0}},
+            {"sugar_usd_lb": 0.05, "brent_usd_barrel": 40.0},
+            {"mvl_per_usd": 1.80, "basket_index": 1.0}, self.profile,
+            random.Random("2026-08-16"),
+        )
+
+        self.assertEqual(
+            released["components"]["food"]["weather_pressure"],
+            round((
+                july30["components"]["food"]["weather_pressure"]
+                + july31["components"]["food"]["weather_pressure"]
+            ) / 2.0, 4),
+        )
+        self.assertEqual(released_state["published_components"],
+                         released["components"])
+        self.assertEqual(
+            (released["index"], released["mom_pct"], released["yoy_pct"]),
+            (next_day["index"], next_day["mom_pct"], next_day["yoy_pct"]),
+        )
+        self.assertEqual(released["components"], next_day["components"])
+        self.assertNotEqual(released["fuel_95_price_mvl"],
+                            next_day["fuel_95_price_mvl"])
+
     def test_release_day_is_idempotent(self):
         _, state1, _ = self.step(date(2026, 8, 14), self.state)
         public1, state2, events1 = self.step(date(2026, 8, 15), state1)
@@ -83,6 +130,29 @@ class InflationTests(unittest.TestCase):
         )
         self.assertGreater(high["fuel_95_price_mvl"],
                            low["fuel_95_price_mvl"])
+
+    def test_transport_uses_one_day_lagged_fuel_pressure(self):
+        low, low_state, _ = inflation_step(
+            date(2026, 8, 1), copy.deepcopy(self.state), self.weather,
+            {**self.commodities, "brent_usd_barrel": 60.0}, self.exchange,
+            self.profile, random.Random(1),
+        )
+        high, high_state, _ = inflation_step(
+            date(2026, 8, 1), copy.deepcopy(self.state), self.weather,
+            {**self.commodities, "brent_usd_barrel": 100.0}, self.exchange,
+            self.profile, random.Random(1),
+        )
+        self.assertNotEqual(low["components"]["fuel"]["rate_pct"],
+                            high["components"]["fuel"]["rate_pct"])
+        self.assertEqual(low["components"]["transport"]["rate_pct"],
+                         high["components"]["transport"]["rate_pct"])
+
+        after_low, _, _ = self.step(date(2026, 8, 2), low_state)
+        after_high, _, _ = self.step(date(2026, 8, 2), high_state)
+        self.assertEqual(after_low["components"]["fuel"]["rate_pct"],
+                         after_high["components"]["fuel"]["rate_pct"])
+        self.assertNotEqual(after_low["components"]["transport"]["rate_pct"],
+                            after_high["components"]["transport"]["rate_pct"])
 
     def test_observation_for_same_date_is_replaced(self):
         _, state1, _ = self.step(date(2026, 8, 1), self.state)
@@ -132,6 +202,20 @@ class InflationTests(unittest.TestCase):
         self.assertEqual(len(state["monthly_history"]), 24)
         json.dumps(state, allow_nan=False)
         json.dumps(public, allow_nan=False)
+
+    def test_release_replaces_target_month_baseline_without_duplicate(self):
+        _, july_state, _ = self.step(date(2026, 7, 31), self.state)
+        _, released_state, _ = self.step(date(2026, 8, 15), july_state)
+
+        history = released_state["monthly_history"]
+        month_keys = [record["date"][:7] for record in history]
+        july_records = [
+            record for record in history if record["date"] == "2026-07-31"
+        ]
+        self.assertEqual(len(month_keys), len(set(month_keys)))
+        self.assertEqual(len(july_records), 1)
+        self.assertEqual(july_records[0]["source"], "monthly_release")
+        self.assertEqual(len(history), len(self.state["monthly_history"]))
 
     def test_input_dictionaries_are_not_mutated(self):
         inputs = (self.state, self.weather, self.commodities,
