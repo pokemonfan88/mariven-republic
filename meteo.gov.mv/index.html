@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mariven Meteorological Service — 马里文气象局</title>
+<style>
+  :root {
+    --gov-blue: #003d6b;
+    --gov-light: #e8f0fe;
+    --warning-yellow: #fff3cd;
+    --warning-border: #ffc107;
+    --danger-red: #f8d7da;
+    --safe-green: #d4edda;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #f4f6f8; color: #222; line-height: 1.6; }
+
+  /* GOV HEADER */
+  .gov-header { background: var(--gov-blue); color: #fff; padding: 8px 0; font-size: 13px; }
+  .gov-header .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; }
+  .gov-header a { color: #a8d4ff; text-decoration: none; }
+  .gov-header span { opacity: .8; }
+
+  /* MAIN HEADER */
+  .main-header { background: linear-gradient(180deg, #005a9e 0%, #003d6b 100%); color: #fff; padding: 24px 0 18px; }
+  .main-header .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 20px; }
+  .logo { width: 64px; height: 64px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; flex-shrink: 0; }
+  .main-header h1 { font-size: 26px; font-weight: 700; }
+  .main-header .sub { font-size: 14px; opacity: .85; }
+  .main-header .tagline { font-size: 12px; opacity: .65; margin-top: 2px; }
+
+  /* NAV */
+  .nav { background: #fff; border-bottom: 3px solid var(--gov-blue); }
+  .nav .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; gap: 0; }
+  .nav a { text-decoration: none; color: #333; padding: 12px 18px; font-size: 14px; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -3px; }
+  .nav a:hover, .nav a.active { color: var(--gov-blue); border-bottom-color: var(--gov-blue); }
+
+  /* MAIN LAYOUT */
+  .content { max-width: 1100px; margin: 20px auto; padding: 0 20px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* CARDS */
+  .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { font-size: 16px; color: var(--gov-blue); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e8f0fe; }
+  .card h3 .icon { margin-right: 6px; }
+
+  /* CURRENT WEATHER */
+  .current-weather { display: flex; align-items: center; gap: 30px; padding: 10px 0; }
+  .current-icon { font-size: 72px; }
+  .current-temp { font-size: 56px; font-weight: 300; line-height: 1; }
+  .current-temp span { font-size: 24px; color: #666; }
+  .current-details { font-size: 14px; color: #555; line-height: 2; }
+  .current-details strong { color: #222; }
+
+  /* CITY FORECAST */
+  .city-card { text-align: center; }
+  .city-card .city-name { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+  .city-card .city-icon { font-size: 42px; margin: 6px 0; }
+  .city-card .city-temp { font-size: 22px; font-weight: 500; }
+  .city-card .city-lo { color: #888; font-size: 14px; }
+  .city-card .city-cond { font-size: 13px; color: #666; margin-top: 4px; }
+
+  /* FORECAST TABLE */
+  table.forecast { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.forecast th { background: #e8f0fe; color: var(--gov-blue); padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 2px solid #ccc; }
+  table.forecast td { padding: 10px; border-bottom: 1px solid #eee; }
+  table.forecast tr:last-child td { border-bottom: none; }
+
+  /* ALERT BARS */
+  .alert { padding: 14px 18px; border-radius: 8px; margin-bottom: 16px; font-weight: 500; display: flex; align-items: center; gap: 12px; }
+  .alert.warning { background: var(--warning-yellow); border: 1px solid var(--warning-border); }
+  .alert.danger { background: var(--danger-red); border: 1px solid #f5c6cb; }
+  .alert.success { background: var(--safe-green); border: 1px solid #c3e6cb; }
+  .alert .alert-icon { font-size: 28px; }
+
+  /* VOLCANO STATUS */
+  .volcano-status { display: flex; align-items: center; gap: 16px; padding: 14px; border-radius: 8px; }
+  .status-dot { width: 16px; height: 16px; border-radius: 50%; background: #28a745; animation: pulse 3s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+  .status-label { font-weight: 700; font-size: 18px; color: #28a745; }
+  .status-detail { font-size: 13px; color: #666; margin-top: 4px; }
+
+  /* MARINE */
+  .marine-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .marine-zone { text-align: center; padding: 12px 8px; background: #f8fafc; border-radius: 8px; }
+  .marine-zone .zone-name { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  .marine-zone .wave { font-size: 18px; color: #005a9e; font-weight: 600; }
+  .marine-zone .wind { font-size: 12px; color: #666; margin-top: 3px; }
+  .marine-zone .advisory { font-size: 11px; margin-top: 4px; padding: 2px 8px; border-radius: 12px; display: inline-block; }
+  .marine-zone .advisory.safe { background: #d4edda; color: #155724; }
+  .marine-zone .advisory.caution { background: #fff3cd; color: #856404; }
+
+  /* SEARCH */
+  .search-bar { display: flex; gap: 8px; margin-bottom: 20px; }
+  .search-bar input { flex: 1; padding: 10px 14px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px; }
+  .search-bar button { padding: 10px 24px; background: var(--gov-blue); color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 600; }
+
+  /* FOOTER */
+  .footer { background: var(--gov-blue); color: #a8d4ff; padding: 30px 0; margin-top: 40px; font-size: 13px; }
+  .footer .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px; }
+  .footer h4 { color: #fff; margin-bottom: 10px; font-size: 14px; }
+  .footer a { color: #a8d4ff; text-decoration: none; display: block; margin: 4px 0; }
+  .footer .disclaimer { grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,.15); padding-top: 16px; font-size: 11px; opacity: .7; }
+  .update-time { font-size: 12px; color: #666; }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-4 { grid-template-columns: 1fr; }
+    .current-weather { flex-direction: column; text-align: center; }
+    .marine-grid { grid-template-columns: repeat(2, 1fr); }
+    .footer .inner { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- GOV TOP BAR -->
+<div class="gov-header">
+  <div class="inner">
+    <span>🇲🇻 马里文共和国政府官方网站</span>
+    <span><a href="#">English</a> · <a href="#">Marivé</a> · <a href="#">联系方式</a></span>
+  </div>
+</div>
+
+<!-- MAIN HEADER -->
+<div class="main-header">
+  <div class="inner">
+    <div class="logo">🌀</div>
+    <div>
+      <h1>马里文气象局</h1>
+      <div class="sub">Mariven Meteorological Service</div>
+      <div class="tagline">Ministry of Transport &amp; Infrastructure · 交通与基础设施部</div>
+    </div>
+  </div>
+</div>
+
+<!-- NAVIGATION -->
+<div class="nav">
+  <div class="inner">
+    <a href="#" class="active">首页</a>
+    <a href="#">天气预报</a>
+    <a href="#">海洋预报</a>
+    <a href="#">气旋与灾害预警</a>
+    <a href="#">火山监测</a>
+    <a href="#">气候数据</a>
+    <a href="#">关于我们</a>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- NO ACTIVE WARNINGS -->
+<div class="alert success">
+  <span class="alert-icon">✅</span>
+  <div>
+    <strong>当前无气象灾害预警。</strong> 南太平洋区域无热带气旋活动。塔普火山预警等级：<strong>绿色</strong>（正常）。<br>
+    <span class="update-time">最后更新：2026年7月12日 06:00 MVT（马里文时间 UTC+12）</span>
+  </div>
+</div>
+
+<!-- CITY SEARCH -->
+<div class="search-bar">
+  <input type="text" placeholder="搜索城市或岛屿... 例：卡托拉、蒂莫城、佩拉港">
+  <button>搜索</button>
+</div>
+
+<!-- CURRENT CONDITIONS + TODAY -->
+<div class="grid-2" style="margin-bottom:20px;">
+
+  <!-- CURRENT WEATHER — Katora City -->
+  <div class="card">
+    <h3><span class="icon">📍</span>卡托拉市 — 当前天气</h3>
+    <div class="current-weather">
+      <div class="current-icon">☀️</div>
+      <div>
+        <div class="current-temp">26<span>°C</span></div>
+        <div style="font-size:16px;color:#555;margin-bottom:8px;">晴朗 · 晴</div>
+        <div class="current-details">
+          <div>体感温度 <strong>28°C</strong></div>
+          <div>湿度 <strong>71%</strong></div>
+          <div>风向/风速 <strong>东南 12 km/h</strong></div>
+          <div>气压 <strong>1014 hPa</strong></div>
+          <div>能见度 <strong>>20 km</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="update-time" style="margin-top:12px;">观测时间：2026年7月12日 10:30 — 卡托拉国际机场气象站 (KTR)</div>
+  </div>
+
+  <!-- TODAY'S FORECAST -->
+  <div class="card">
+    <h3><span class="icon">📅</span>今日预报 · 2026年7月12日 周日</h3>
+    <table class="forecast">
+      <tr><th style="width:30%">时段</th><th>天气</th><th>温度</th><th>降雨</th><th>风</th></tr>
+      <tr><td>早晨 06-12</td><td>☀️ 晴</td><td>21 → 25°C</td><td>0.0 mm</td><td>东风 8 km/h</td></tr>
+      <tr><td>下午 12-18</td><td>⛅ 晴间多云</td><td>26 → 28°C</td><td>0.0 mm</td><td>东南风 15 km/h</td></tr>
+      <tr><td>夜间 18-06</td><td>🌙 晴</td><td>25 → 21°C</td><td>0.0 mm</td><td>东南风 10 km/h</td></tr>
+    </table>
+    <div style="margin-top:12px;font-size:13px;color:#666;">紫外线指数：<strong>高 (7)</strong> · 日出 06:32 · 日落 17:48 · 海水温度 <strong>25°C</strong></div>
+  </div>
+</div>
+
+<!-- 4-ISLAND QUICK FORECAST -->
+<div class="card" style="margin-bottom:20px;">
+  <h3><span class="icon">🏝️</span>四岛主要城市 — 今明两天</h3>
+  <div class="grid-4">
+    <div class="city-card">
+      <div class="city-name">🏙️ 卡托拉市</div>
+      <div class="city-icon">☀️</div>
+      <div class="city-temp">28°C</div>
+      <div class="city-lo">21°C</div>
+      <div class="city-cond">晴 — 微风</div>
+    </div>
+    <div class="city-card">
+      <div class="city-name">🏭 马卡迪港</div>
+      <div class="city-icon">⛅</div>
+      <div class="city-temp">29°C</div>
+      <div class="city-lo">20°C</div>
+      <div class="city-cond">多云转晴</div>
+    </div>
+    <div class="city-card">
+      <div class="city-name">🌿 蒂莫城</div>
+      <div class="city-icon">☀️</div>
+      <div class="city-temp">27°C</div>
+      <div class="city-lo">19°C</div>
+      <div class="city-cond">晴 — 凉爽</div>
+    </div>
+    <div class="city-card">
+      <div class="city-name">🏖️ 佩拉港</div>
+      <div class="city-icon">☀️</div>
+      <div class="city-temp">29°C</div>
+      <div class="city-lo">23°C</div>
+      <div class="city-cond">晴 — 完美海滩天气</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3-DAY FORECAST -->
+<div class="grid-2" style="margin-bottom:20px;">
+  <div class="card">
+    <h3><span class="icon">📊</span>卡托拉市 — 3天预报</h3>
+    <table class="forecast">
+      <tr><th>日期</th><th>天气</th><th>最高</th><th>最低</th><th>降雨</th><th>风</th></tr>
+      <tr>
+        <td><strong>周日 7/12</strong></td>
+        <td>☀️ 晴</td><td>28°C</td><td>21°C</td><td>0.0mm</td><td>SE 15km/h</td>
+      </tr>
+      <tr>
+        <td>周一 7/13</td>
+        <td>⛅ 多云</td><td>27°C</td><td>22°C</td><td>0.2mm</td><td>E 18km/h</td>
+      </tr>
+      <tr>
+        <td>周二 7/14</td>
+        <td>☀️ 晴</td><td>28°C</td><td>20°C</td><td>0.0mm</td><td>SE 12km/h</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- MARINE FORECAST -->
+  <div class="card">
+    <h3><span class="icon">🌊</span>海洋预报 · 今日</h3>
+    <div class="marine-grid">
+      <div class="marine-zone">
+        <div class="zone-name">科罗海<br>(卡托拉湾)</div>
+        <div class="wave">0.6m</div>
+        <div class="wind">东南 10kt</div>
+        <div class="advisory safe">适合出海</div>
+      </div>
+      <div class="marine-zone">
+        <div class="zone-name">西部海峡<br>(马卡迪港外)</div>
+        <div class="wave">0.9m</div>
+        <div class="wind">东 14kt</div>
+        <div class="advisory safe">适合出海</div>
+      </div>
+      <div class="marine-zone">
+        <div class="zone-name">蒂莫水道<br>(蒂莫岛以南)</div>
+        <div class="wave">1.2m</div>
+        <div class="wind">东南 18kt</div>
+        <div class="advisory caution">小船注意</div>
+      </div>
+      <div class="marine-zone">
+        <div class="zone-name">鲁瓦岛外海</div>
+        <div class="wave">1.0m</div>
+        <div class="wind">东 16kt</div>
+        <div class="advisory safe">适合出海</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:#888;">数据来源：卡托拉湾浮标 (KBF-01) · 佩拉岛潮汐站 · 卫星海面温度 25.2°C</div>
+  </div>
+</div>
+
+<!-- VOLCANO + EXTENDED -->
+<div class="grid-2" style="margin-bottom:20px;">
+  
+  <!-- VOLCANO STATUS -->
+  <div class="card">
+    <h3><span class="icon">🌋</span>塔普火山监测</h3>
+    <div class="volcano-status">
+      <div class="status-dot"></div>
+      <div>
+        <div class="status-label">绿色 — 正常</div>
+        <div class="status-detail">过去24小时：微震活动正常（< M0.5 × 3次）· 地面形变无异常 · 喷气孔温度稳定（92°C）</div>
+        <div class="status-detail" style="margin-top:8px;">
+          上次预警升级：2020年3-4月（黄色——持续五周后自行消退）<br>
+          最后喷发：约公元前800年——监测网络自1995年运行至今
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:#666;">
+      监测合作：新西兰 GNS Science · 监测站：5个地震台 + 3个GPS站 + 2个气体采样点<br>
+      <a href="#" style="color:#005a9e;">查看完整月度火山公报 →</a>
+    </div>
+  </div>
+
+  <!-- WEEKLY OUTLOOK -->
+  <div class="card">
+    <h3><span class="icon">🗓️</span>7天展望 · 2026年7月12日-18日</h3>
+    <p style="font-size:14px;color:#555;margin-bottom:12px;">
+      未来一周卡托拉市以晴到多云天气为主，气温 20-29°C，典型的7月干季模式。午后偶有短时对流阵雨——概率约 15%。
+    </p>
+    <p style="font-size:14px;color:#555;margin-bottom:12px;">
+      南太平洋区域：<strong>无热带气旋形成迹象。</strong> ENSO中性，海面温度正常。8月前气旋风险维持在极低水平。
+    </p>
+    <table class="forecast" style="font-size:12px;">
+      <tr><th>日期</th><th>7/12日</th><th>7/13一</th><th>7/14二</th><th>7/15三</th><th>7/16四</th><th>7/17五</th><th>7/18六</th></tr>
+      <tr>
+        <td>天气</td>
+        <td>☀️</td><td>⛅</td><td>☀️</td><td>☀️</td><td>⛅</td><td>🌦️</td><td>☀️</td>
+      </tr>
+      <tr>
+        <td>高/低</td>
+        <td>28/21</td><td>27/22</td><td>28/20</td><td>29/21</td><td>27/22</td><td>28/23</td><td>28/21</td>
+      </tr>
+    </table>
+  </div>
+  
+</div>
+
+<!-- CLIMATE DATA -->
+<div class="grid-3" style="margin-bottom:20px;">
+  <div class="card">
+    <h3><span class="icon">🌡️</span>气候平均（7月）</h3>
+    <div style="font-size:14px;line-height:2;">
+      <div>平均最高温 <strong>28°C</strong></div>
+      <div>平均最低温 <strong>20°C</strong></div>
+      <div>月降雨量 <strong>72mm</strong></div>
+      <div>月降雨天数 <strong>7天</strong></div>
+      <div>平均海水温度 <strong>25°C</strong></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3><span class="icon">📈</span>昨日实测（7月11日）</h3>
+    <div style="font-size:14px;line-height:2;">
+      <div>最高温 <strong>28.4°C</strong>（14:15）</div>
+      <div>最低温 <strong>20.8°C</strong>（05:42）</div>
+      <div>降雨量 <strong>0.0mm</strong></div>
+      <div>最大阵风 <strong>22 km/h</strong>（15:30）</div>
+      <div>日照时数 <strong>8.2小时</strong></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3><span class="icon">🏄</span>佩拉岛旅游天气</h3>
+    <div style="font-size:14px;line-height:2;">
+      <div>今日 <strong>☀️ 晴 29°C</strong></div>
+      <div>蓝湖海水温 <strong>26°C</strong></div>
+      <div>紫外线指数 <strong>非常高 (9)</strong></div>
+      <div>潜水能见度 <strong>>25m</strong></div>
+      <div style="margin-top:6px;font-size:12px;color:#666;">下午潮位：高 14:22 (1.3m) / 低 20:45 (0.4m)</div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;">
+      <a href="#" style="color:#005a9e;">查看佩拉岛完整海滩安全指南 →</a>
+    </div>
+  </div>
+</div>
+
+<!-- INFORMATION SECTION -->
+<div class="card" style="margin-bottom:20px;">
+  <h3><span class="icon">📡</span>关于本网站</h3>
+  <p style="font-size:14px;color:#555;">
+    马里文气象局（MMS）是交通与基础设施部下属的政府机构，负责为马里文共和国四岛提供天气预报、海洋预报、气旋预警和火山监测服务。本站数据每日更新4次（02:00、08:00、14:00、20:00 MVT）。紧急预警实时推送。
+  </p>
+  <p style="font-size:14px;color:#555;margin-top:8px;">
+    灾害预警合作机构：世界气象组织（WMO）· 太平洋海啸预警中心（PTWC）· 斐济气象局（FMS）· 新西兰 GNS Science · 澳大利亚气象局（BOM）。
+  </p>
+  <p style="font-size:14px;color:#555;margin-top:8px;">
+    紧急天气预警自动推送至：FM 88.2 Radio Mariven 1 · AM 558 紧急广播 · NDMO 短信系统。
+  </p>
+</div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="inner">
+    <div>
+      <h4>天气预报</h4>
+      <a href="#">卡托拉市</a>
+      <a href="#">马卡迪港</a>
+      <a href="#">蒂莫城</a>
+      <a href="#">佩拉港</a>
+      <a href="#">鲁瓦镇</a>
+      <a href="#">塔普瓦莱</a>
+    </div>
+    <div>
+      <h4>海洋与灾害</h4>
+      <a href="#">海洋预报</a>
+      <a href="#">气旋预警中心</a>
+      <a href="#">海啸预警</a>
+      <a href="#">火山监测</a>
+      <a href="#">洪水预警</a>
+    </div>
+    <div>
+      <h4>数据与气候</h4>
+      <a href="#">历史气候数据</a>
+      <a href="#">月度气候公报</a>
+      <a href="#">年度气候报告</a>
+      <a href="#">气象站网络</a>
+      <a href="#">卫星图像</a>
+    </div>
+    <div>
+      <h4>关于</h4>
+      <a href="#">联系我们</a>
+      <a href="#">媒体查询</a>
+      <a href="#">招聘</a>
+      <a href="#">政府门户</a>
+      <a href="#">使用条款</a>
+    </div>
+    <div class="disclaimer">
+      <strong>免责声明：</strong>本网站提供的气象信息基于可获得的最佳科学数据和模型。马里文气象局不对因使用本信息而导致的任何损失或损害承担责任。海上作业者应在出海前交叉核查多种信息来源。紧急情况下，请遵从NDMO和当地政府的指示。<br><br>
+      © 2026 Mariven Meteorological Service · 马里文共和国政府 · <a href="https://gov.mv">gov.mv</a> · 本站由马里文气象局维护 · 卡托拉市维多利亚大道120号
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Pip-installed libs
+sim-engine/engine/openpyxl/
+sim-engine/engine/openpyxl-*.dist-info/
+sim-engine/engine/et_xmlfile/
+sim-engine/engine/et_xmlfile-*.dist-info/
+
+# Large raw data
+sim-engine/data/ibtracs_sp_raw.csv
+sim-engine/data/pink_sheet_monthly.xlsx
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

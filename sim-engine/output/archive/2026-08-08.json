@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "description": "Mariven simulation engine state snapshot — loaded and mutated by engine.py on each tick",
+    "random_seed": 42,
+    "ticks_run": 27
+  },
+  "date": "2026-08-08",
+  "weather": {
+    "condition": "阵雨",
+    "temp_high": 21,
+    "temp_low": 17,
+    "humidity": 65,
+    "rainfall_mm": 23.4,
+    "wind_kmh": 17,
+    "cyclone_risk": "none",
+    "notes": "午后短时阵雨——西部平原蔗田受益。"
+  },
+  "economy": {
+    "gdp_growth_pct": 3.1,
+    "inflation_pct": 2.3885,
+    "unemployment_pct": 8.2095,
+    "interest_rate_pct": 2.5,
+    "exchange_rate_mvl_per_usd": 2.202,
+    "fuel_95_price_mvl": 2.9232,
+    "fuel_diesel_price_mvl": 2.3308
+  },
+  "government": {
+    "pm": "托马斯·马卡里",
+    "pm_party": "MUP",
+    "coalition": [
+      "MUP",
+      "PAP"
+    ],
+    "seats": {
+      "MUP": 32,
+      "DPA": 24,
+      "PAP": 12,
+      "IRP": 6,
+      "GFP": 3,
+      "IND": 1
+    },
+    "next_election": "2027-05",
+    "stability": "稳定"
+  },
+  "population": 1200000,
+  "deaths_today": {
+    "traffic": 0,
+    "drowning": 0,
+    "suicide": 0,
+    "murder": 0,
+    "workplace": 0,
+    "lightning": 0,
+    "other": 0,
+    "total": 0
+  },
+  "events_today": [
+    {
+      "type": "weather",
+      "severity": "info",
+      "text": "午后阵雨——预计持续1-2小时",
+      "_date": "2026-08-08"
+    }
+  ]
+}

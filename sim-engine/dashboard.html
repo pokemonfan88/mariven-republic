@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>马里文国家运营中心 · 75项指标全量监控</title>
+<style>
+  :root {
+    --bg:#060b14; --card:#0f1623; --border:#1a2436; --text:#dde4f0; --muted:#556; --muted2:#334;
+    --blue:#38bdf8; --green:#4ade80; --gold:#fbbf24; --red:#f87171; --purple:#a78bfa;
+    --orange:#fb923c; --teal:#2dd4bf; --pink:#f472b6; --gray:#94a3b8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:12px;line-height:1.4}
+  ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+  .topbar{background:#030812;border-bottom:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:8px}
+  .topbar h1{font-size:14px;letter-spacing:2px;color:var(--blue)}
+  .topbar .meta{display:flex;gap:18px;font-size:11px;color:var(--muted);align-items:center;flex-wrap:wrap}
+  .topbar .meta b{color:var(--text)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;padding:10px;max-width:1920px;margin:0 auto}
+
+  .card{background:var(--card);border-radius:8px;overflow:hidden;border:1px solid var(--border);position:relative}
+  .card .bar{height:3px}
+  .card .body{padding:11px 13px 13px}
+  .card .title{font-size:10px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  .card .main{font-size:22px;font-weight:800;line-height:1.1;margin-bottom:3px}
+  .card .sub{font-size:10px;color:var(--muted);line-height:1.4}
+  .card .spark{display:flex;align-items:flex-end;gap:1px;height:20px;margin-top:8px}
+  .card .spark div{flex:1;min-width:2px;background:var(--blue);border-radius:1px 1px 0 0;opacity:.5;min-height:1px}
+  .card .spark div.hi{opacity:1;background:var(--green)}
+  .card .spark div.lo{opacity:1;background:var(--red)}
+  .card .tag{display:inline-block;font-size:9px;padding:1px 7px;border-radius:8px;margin-top:5px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1><span class="dot"></span>MARIVEN · 国家运营中心 · 75项全量指标</h1>
+  <div class="meta">
+    <span>📅 <b id="hd">2026-07-13</b></span><span>🕐 <b>10:30 MVT</b></span>
+    <span>🔄 Ticks: <b id="ht">0</b></span><span>👥 <b>1,200,000</b></span>
+    <span style="cursor:pointer;color:var(--blue);font-weight:700" onclick="location.reload()">⟳ REFRESH</span>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+/* ── 75 CARD DEFINITIONS ── */
+const C = (title,main,sub,color,spark,icon) => ({title,main,sub:sub||'',color:color||'var(--gray)',spark:spark||null,icon:icon||''});
+
+const D75 = [
+  // 1-5: 天气 — 五城
+  C('🌤️ 卡托拉天气','28° ⛅','↓21° RH72% 东南3级','var(--blue)'),
+  C('🌤️ 马卡迪港天气','29° ☀️','↓20° RH68% 东风14km','var(--blue)'),
+  C('🌤️ 蒂莫城天气','27° ☀️','↓19° RH75% 东南18km','var(--blue)'),
+  C('🌤️ 佩拉港天气','29° ☀️','↓23° RH65% 东风12km','var(--blue)'),
+  C('🌤️ 鲁瓦镇天气','25° ⛅','↓20° RH80% 南风10km','var(--blue)'),
+  // 6-9: 天文与风险
+  C('🌅 日出时间','06:32','昼长11h16m · UV7','var(--blue)'),
+  C('🌇 日落时间','17:48','UV指数 高(7)','var(--blue)'),
+  C('☀️ 紫外线','7 · 高','防晒建议 · 干季加强','var(--blue)'),
+  C('🌀 气旋风险','无','南太平洋无活跃气旋','var(--green)'),
+  // 10-15: 海洋
+  C('🌊 科罗海','0.6m','10kt · 适合出海','var(--blue)'),
+  C('🌊 西部海峡','0.9m','14kt · 适合出海','var(--blue)'),
+  C('🌊 蒂莫水道','1.2m','18kt · ⚠ 小船注意','var(--orange)'),
+  C('🌊 鲁瓦外海','1.0m','16kt · 适合出海','var(--blue)'),
+  C('🌡️ 海面温度','25.2°C','玛文科罗海浮标','var(--blue)'),
+  C('🌙 潮汐','H 14:22 / L 20:45','1.3m / 0.4m','var(--blue)'),
+  // 16-17: 地质
+  C('🌋 塔普火山','🟢 绿色','微震3次(M<0.5) 气热92°C','var(--green)'),
+  C('📡 地震监测','0次有感','最大震级: —','var(--green)'),
+  // 18-25: 经济核心
+  C('💰 名义GDP','163.5亿 MVL','增速 3.1%','var(--gold)'),
+  C('📈 CPI通胀','2.40%','同比上月 稳定','var(--gold)'),
+  C('👷 失业率','8.2%','劳动力参与率 62%','var(--gold)'),
+  C('🏦 政策利率','2.50%','央行 梅利·纳卡西','var(--gold)'),
+  C('💱 MVL/USD','2.18','央行每日公布','var(--gold)'),
+  C('⛽ 95#汽油','$2.85 MVL/L','布伦特联动','var(--gold)'),
+  C('⛽ 柴油','$2.35 MVL/L','港口+运输','var(--gold)'),
+  C('🏦 外汇储备','18.2亿 MVL','≈ 3.6个月进口','var(--gold)'),
+  // 26-27: 财政
+  C('📊 公债/GDP','78.9%','警戒线 60%','var(--red)'),
+  C('📉 财政赤字','-3.8% GDP','2026财年','var(--red)'),
+  // 28-31: 全球商品
+  C('🍬 ICE糖价','$0.22/lb','马里文基准出口价','var(--gold)'),
+  C('🥇 伦敦金价','$2,420/oz','鲁瓦矿营收基准','var(--gold)'),
+  C('🛢️ 布伦特原油','$82.5/bbl','燃油零售联动','var(--gold)'),
+  C('🇦🇺 AUD/USD','0.665','侨汇敏感汇率','var(--gold)'),
+  // 32-34: 贸易
+  C('🚢 月出口额','1.42亿 MVL','最大品类: 金矿 38%','var(--gold)'),
+  C('📦 月进口额','2.08亿 MVL','最大品类: 燃料 28%','var(--gold)'),
+  C('⚖️ 贸易差额','-0.66亿 MVL','逆差持续','var(--red)'),
+  // 35-40: 产业
+  C('🏖️ 月入境游客','12,800人','酒店入住率 72%','var(--teal)'),
+  C('🌾 蔗糖年产量','185,000吨','西部平原主产区','var(--gold)'),
+  C('⛏️ 金矿月产量','4,200盎司','鲁瓦·Vatukula矿','var(--gold)'),
+  C('🍵 卡瓦年出口','280吨','蒂莫岛主产','var(--green)'),
+  C('🐟 月渔获量','950吨','金枪鱼为主','var(--blue)'),
+  C('💧 矿泉水出口','+22% YoY','中国市场增长','var(--green)'),
+  // 41-45: 农业周期
+  C('🌾 甘蔗生长','收割中 65%','剩42天 · 10月→2月','var(--green)',null,'../../████████████░░░░░░░'),
+  C('🌿 卡瓦(3年)','生长中 45%','剩580天 · 2024→2027','var(--gold)'),
+  C('🌿 卡瓦(4年)','生长中 30%','剩890天 · 2023→2027','var(--gold)'),
+  C('🥔 芋头种植','种植期 95%','剩210天 · 9月→2月','var(--green)'),
+  C('🥥 椰子生产','常年收获','气旋损害风险低','var(--green)'),
+  // 46-52: 公共卫生
+  C('🦟 登革热(周)','12例','↓18% YoY · wMar-1起效','var(--green)',[38,32,29,25,22,18,15,14,13,12,11,12]),
+  C('🍬 糖尿病率','16.2%','含糖饮料税评估中','var(--orange)'),
+  C('🦠 wMar-1覆盖','42%','Wolbachia菌株推广中','var(--green)'),
+  C('🏥 医院占用率','75%','卡托拉总医院 420床','var(--orange)'),
+  C('👶 婴儿死亡率','14.5/千','5年下降 22%','var(--green)'),
+  C('💚 自杀率','4.8/10万','Lifeline热线 2023开通','var(--red)'),
+  C('💉 新冠接种率','83%','两剂覆盖率','var(--green)'),
+  // 53-61: 人口社会
+  C('👥 人口增长率','0.8%/年','自然增长+净移民','var(--teal)'),
+  C('📊 中位年龄','24.6岁','青年型人口结构','var(--teal)'),
+  C('🏙️ 城市化率','48%','卡托拉市 42万人','var(--teal)'),
+  C('🏚️ 瓦图瓦卡人口','32,000人','非正式定居点 南郊','var(--orange)'),
+  C('💸 月侨汇收入','4,200万 MVL','澳新侨民汇款','var(--gold)'),
+  C('🌏 侨民总数','85,000人','主要分布 澳新英美','var(--teal)'),
+  C('✈️ 人才外流率','35%','毕业生5年内移民','var(--red)'),
+  C('📖 识字率','94.2%','2024年统计','var(--green)'),
+  C('🗣️ Marivé使用率','78%','代际衰减中','var(--orange)'),
+  // 62-67: 犯罪司法
+  C('🔪 凶杀率','1.8/10万','低于区域均值','var(--green)'),
+  C('🦝 盗窃率','285/10万','财产犯罪为主','var(--orange)'),
+  C('💊 毒品案件/月','14起','甲基苯丙胺流入','var(--red)'),
+  C('🏠 家暴举报/月','42起','实际数远高于举报','var(--red)'),
+  C('🔒 监狱占用','390/420','占用率 93%','var(--orange)'),
+  C('⚖️ 法庭积压','127天','等候审判中位数','var(--red)'),
+  // 68-73: 政治治理
+  C('👍 总理支持率','52%','马卡里 · MUP','var(--green)'),
+  C('🤝 联盟稳定度','稳定','MUP+PAP · 45/78席','var(--green)'),
+  C('📜 本会期法案','8件','2026第二会期','var(--purple)'),
+  C('🔍 ICAC调查中','5件','含鲁瓦矿难安检报告','var(--orange)'),
+  C('🕵️ 腐败感知','CPI 52/100','中等水平','var(--orange)'),
+  C('🗳️ 下次大选','2027-05','选民登记截止 2.28','var(--purple)'),
+  // 74-80: 基础设施
+  C('⚡ 发电总量','206MW','69%可再生能源','var(--green)'),
+  C('☀️ 可再生占比','69%','2028目标 60%·已提前','var(--green)'),
+  C('🛣️ 道路状况','良好','干季养护中','var(--green)'),
+  C('⚓ 港口拥堵','低','集装箱周转正常','var(--green)'),
+  C('✈️ 航空准时率','72%','Air Maybe 自嘲','var(--orange)'),
+  C('💧 水库水位','84%','莫纳萨武蓄水正常','var(--green)'),
+  C('📶 4G覆盖率','88%','蒂莫岛8月开通','var(--green)'),
+  // 81-86: 国际关系
+  C('🇦🇺 澳关系','良好','最大援助国+侨民国','var(--green)'),
+  C('🇳🇿 新关系','良好','第二侨民国','var(--green)'),
+  C('🇨🇳 中关系','积极','FTA执行中 免签生效','var(--green)'),
+  C('🌏 PIF关系','合作中','太平洋岛国论坛','var(--green)'),
+  C('🇺🇳 联合国立场','激进','损失与损害积极推动','var(--purple)'),
+  C('🇬🇧 英关系','英联邦成员','殖民历史纽带','var(--purple)'),
+  // 87-91: 综合指标
+  C('💵 人均GDP','$6,250','中低收入国家','var(--gold)'),
+  C('📚 HDI','0.718','中等人类发展水平','var(--gold)'),
+  C('📊 基尼系数','38.5','中等不平等','var(--orange)'),
+  C('🌍 人均CO₂','2.8吨','远低于全球均值','var(--green)'),
+  C('🏅 国家风险','B+ 稳定','主权信用评级','var(--gold)'),
+  // 92-95: 预警看板
+  C('🚨 天气预警','✅ 无','当前无灾害预警','var(--green)'),
+  C('🚨 火山预警','✅ 绿色','塔普山正常','var(--green)'),
+  C('🚨 卫生预警','✅ 无','无活跃疫情通报','var(--green)'),
+  C('🚨 NDMO状态','⚠ 注意','干季火灾风险中等','var(--orange)'),
+];
+
+/* ── RENDER ── */
+(function(){
+  document.getElementById('hd').textContent = '2026-07-13';
+  document.getElementById('ht').textContent = '0';
+
+  const sparkSVG = (arr, hi) => {
+    if(!arr || !arr.length) return '';
+    const max = Math.max(...arr, hi || 1);
+    return `<div class="spark">${arr.map((v,i)=>{
+      const h = Math.max(2, (v/max)*100);
+      const cls = v > arr[arr.length-1] ? 'hi' : v < arr[arr.length-1] ? 'lo' : '';
+      return `<div class="${cls}" style="height:${h}%"></div>`;
+    }).join('')}</div>`;
+  };
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = D75.map((c,i) => `
+    <div class="card" id="c${i}">
+      <div class="bar" style="background:${c.color}"></div>
+      <div class="body">
+        <div class="title" style="color:${c.color}">${c.icon} ${c.title}</div>
+        <div class="main" style="color:var(--text)">${c.main}</div>
+        <div class="sub">${c.sub}</div>
+        ${c.spark ? sparkSVG(c.spark, 40) : ''}
+      </div>
+    </div>
+  `).join('');
+})();
+</script>
+
+</body>
+</html>

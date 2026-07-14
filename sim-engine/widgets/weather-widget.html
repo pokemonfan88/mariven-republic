@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>马里文天气预报 — Mariven Weather</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(170deg, #1a3a5c 0%, #2d6a9f 25%, #4a9ad5 50%, #7ec8e3 75%, #b8dff0 100%);
+    padding: 20px;
+  }
+
+  .weather-widget {
+    width: 100%; max-width: 680px;
+    background: rgba(255,255,255,.18);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 28px;
+    padding: 32px 28px;
+    border: 1px solid rgba(255,255,255,.25);
+    box-shadow: 0 20px 60px rgba(0,30,60,.3), 0 0 0 1px rgba(255,255,255,.1) inset;
+    color: #fff;
+  }
+
+  /* ── HEADER ── */
+  .widget-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 6px;
+  }
+  .widget-header h2 { font-size: 13px; font-weight: 600; opacity: .8; text-transform: uppercase; letter-spacing: 1px; }
+  .widget-header .update { font-size: 11px; opacity: .55; }
+  .widget-header .badge {
+    background: rgba(255,255,255,.15); border-radius: 16px; padding: 4px 14px;
+    font-size: 11px; font-weight: 600; letter-spacing: .5px;
+  }
+
+  /* ── MAIN CURRENT ── */
+  .current-main {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 8px 0 4px;
+  }
+  .current-left { display: flex; align-items: center; gap: 16px; }
+  .weather-icon { font-size: 80px; filter: drop-shadow(0 8px 16px rgba(0,0,0,.2)); line-height: 1; }
+  .current-temp { font-size: 78px; font-weight: 200; line-height: 1; letter-spacing: -3px; }
+  .current-temp sup { font-size: 30px; font-weight: 300; opacity: .6; }
+  .current-right { text-align: right; }
+  .current-right .condition { font-size: 22px; font-weight: 500; opacity: .9; }
+  .current-right .feels { font-size: 14px; opacity: .6; margin-top: 2px; }
+  .current-right .date { font-size: 12px; opacity: .45; margin-top: 6px; }
+
+  /* ── INFO BAR ── */
+  .info-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin: 20px 0;
+  }
+  .info-item {
+    background: rgba(255,255,255,.12);
+    border-radius: 16px; padding: 16px 14px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .info-item .info-value { font-size: 20px; font-weight: 600; }
+  .info-item .info-label { font-size: 11px; opacity: .6; margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+  .info-item .info-sub { font-size: 10px; opacity: .4; margin-top: 2px; }
+
+  /* ── SUN TIMELINE ── */
+  .sun-section {
+    background: rgba(255,255,255,.08); border-radius: 18px;
+    padding: 18px 20px; margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .sun-row { display: flex; align-items: center; justify-content: space-between; }
+  .sun-point { text-align: center; }
+  .sun-point .sun-icon { font-size: 28px; }
+  .sun-point .sun-time { font-size: 16px; font-weight: 600; margin-top: 4px; }
+  .sun-point .sun-label { font-size: 10px; opacity: .5; text-transform: uppercase; letter-spacing: 1px; }
+  .sun-bar {
+    flex: 1; height: 4px; background: rgba(255,255,255,.15); border-radius: 2px;
+    margin: 0 16px; position: relative;
+  }
+  .sun-bar-fill {
+    position: absolute; left: 0; top: 0; height: 100%;
+    background: linear-gradient(90deg, #ffb347, #ffdc80, #ffb347);
+    border-radius: 2px; width: 72%;
+  }
+
+  /* ── FORECAST ── */
+  .forecast-row {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  }
+  .forecast-card {
+    background: rgba(255,255,255,.1);
+    border-radius: 18px; padding: 14px 8px; text-align: center;
+    border: 1px solid rgba(255,255,255,.08);
+    transition: background .2s;
+  }
+  .forecast-card:hover { background: rgba(255,255,255,.18); }
+  .forecast-card .fc-day { font-size: 11px; opacity: .6; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+  .forecast-card .fc-icon { font-size: 32px; margin: 6px 0; }
+  .forecast-card .fc-high { font-size: 17px; font-weight: 600; }
+  .forecast-card .fc-low { font-size: 13px; opacity: .5; margin-top: 1px; }
+  .forecast-card .fc-rain { font-size: 10px; opacity: .4; margin-top: 4px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .weather-widget { padding: 20px 16px; border-radius: 20px; }
+    .current-temp { font-size: 56px; }
+    .weather-icon { font-size: 56px; }
+    .info-bar { grid-template-columns: repeat(2, 1fr); }
+    .forecast-row { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+    .forecast-card { padding: 8px 4px; }
+    .forecast-card .fc-icon { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="weather-widget">
+  
+  <!-- ── HEADER ── -->
+  <div class="widget-header">
+    <div>
+      <h2>🇲🇻 卡托拉市 · 马里文</h2>
+      <div class="update">观测时间 10:30 MVT · 卡托拉国际机场 (KTR)</div>
+    </div>
+    <div class="badge">📍 Katora City</div>
+  </div>
+
+  <!-- ── CURRENT MAIN ── -->
+  <div class="current-main">
+    <div class="current-left">
+      <div class="weather-icon">⛅</div>
+      <div>
+        <div class="current-temp">28<sup>°C</sup></div>
+      </div>
+    </div>
+    <div class="current-right">
+      <div class="condition">多云转晴</div>
+      <div class="feels">体感温度 31°C</div>
+      <div class="date">2026年7月13日 · 周一</div>
+    </div>
+  </div>
+
+  <!-- ── INFO BAR ── -->
+  <div class="info-bar">
+    <div class="info-item">
+      <div class="info-value">31°C</div>
+      <div class="info-label">体感温度</div>
+      <div class="info-sub">Feels Like</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value">72%</div>
+      <div class="info-label">湿度</div>
+      <div class="info-sub">Humidity</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value">↗ 3级</div>
+      <div class="info-label">东南风</div>
+      <div class="info-sub">15 km/h</div>
+    </div>
+    <div class="info-item">
+      <div class="info-value" style="color: #7ddf90;">42</div>
+      <div class="info-label">空气质量 AQI</div>
+      <div class="info-sub" style="color: #7ddf90;">优 · Good</div>
+    </div>
+  </div>
+
+  <!-- ── SUN TIMELINE ── -->
+  <div class="sun-section">
+    <div class="sun-row">
+      <div class="sun-point">
+        <div class="sun-icon">🌅</div>
+        <div class="sun-time">06:32</div>
+        <div class="sun-label">日出 Sunrise</div>
+      </div>
+      <div class="sun-bar">
+        <div class="sun-bar-fill"></div>
+      </div>
+      <div class="sun-point">
+        <div class="sun-icon">🌇</div>
+        <div class="sun-time">17:48</div>
+        <div class="sun-label">日落 Sunset</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:10px;opacity:.35;margin-top:8px;">昼长 11小时16分 · 紫外线指数 高 (7)</div>
+  </div>
+
+  <!-- ── 5-DAY FORECAST ── -->
+  <div class="forecast-row">
+    <div class="forecast-card">
+      <div class="fc-day">周一 7/13</div>
+      <div class="fc-icon">⛅</div>
+      <div class="fc-high">28°</div>
+      <div class="fc-low">21°</div>
+      <div class="fc-rain">💧 0.0mm</div>
+    </div>
+    <div class="forecast-card">
+      <div class="fc-day">周二 7/14</div>
+      <div class="fc-icon">☀️</div>
+      <div class="fc-high">29°</div>
+      <div class="fc-low">22°</div>
+      <div class="fc-rain">💧 0.0mm</div>
+    </div>
+    <div class="forecast-card">
+      <div class="fc-day">周三 7/15</div>
+      <div class="fc-icon">⛅</div>
+      <div class="fc-high">27°</div>
+      <div class="fc-low">21°</div>
+      <div class="fc-rain">💧 0.2mm</div>
+    </div>
+    <div class="forecast-card">
+      <div class="fc-day">周四 7/16</div>
+      <div class="fc-icon">🌦️</div>
+      <div class="fc-high">26°</div>
+      <div class="fc-low">20°</div>
+      <div class="fc-rain">💧 3.5mm</div>
+    </div>
+    <div class="forecast-card">
+      <div class="fc-day">周五 7/17</div>
+      <div class="fc-icon">☀️</div>
+      <div class="fc-high">29°</div>
+      <div class="fc-low">22°</div>
+      <div class="fc-rain">💧 0.0mm</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════ DATA BRIDGE — How this widget connects to the engine ═══════════ -->
+<pre id="data-debug" style="display:none; margin:20px auto; max-width:680px; background:rgba(0,0,0,.7); color:#0f0; padding:16px; border-radius:12px; font-size:11px; font-family:monospace; white-space:pre-wrap;"></pre>
+
+<script>
+/* ═════════════════════════════════════════════════╗
+   WEATHER DATA LOADER — Engine Integration Bridge
+   ═════════════════════════════════════════════════╝
+
+   生产模式:
+     fetch('../output/state.json') → 读取引擎输出的今天天气数据
+     then → 更新页面上的温度、图标、预报、日出日落等
+
+   离线模式(当前):
+     使用硬编码默认数据 — 与引擎日输出完全一致
+*/
+
+const DEFAULT_WEATHER = {
+  date: "2026-07-13",
+  weekday_cn: "周一",
+  location: "卡托拉市",
+  station: "卡托拉国际机场 (KTR)",
+  condition_cn: "多云转晴",
+  condition_en: "Partly Cloudy / Clear",
+  temp: 28,
+  feels_like: 31,
+  humidity: 72,
+  wind_dir: "东南",
+  wind_level: 3,
+  wind_kmh: 15,
+  aqi: 42,
+  aqi_label: "优",
+  sunrise: "06:32",
+  sunset: "17:48",
+  daylight: "11h 16m",
+  uv: 7,
+  forecast: [
+    { day:"周一 7/13", icon:"⛅", high:28, low:21, rain:0.0 },
+    { day:"周二 7/14", icon:"☀️", high:29, low:22, rain:0.0 },
+    { day:"周三 7/15", icon:"⛅", high:27, low:21, rain:0.2 },
+    { day:"周四 7/16", icon:"🌦️", high:26, low:20, rain:3.5 },
+    { day:"周五 7/17", icon:"☀️", high:29, low:22, rain:0.0 },
+  ]
+};
+
+function weatherIcon(cond) {
+  const map = { '晴':'☀️', '多云':'⛅', '阴':'☁️', '阵雨':'🌦️', '暴雨':'⛈️', '雷雨':'🌩️', '多云转晴':'⛅', '晴转多云':'⛅' };
+  return map[cond] || '⛅';
+}
+
+function renderWeather(data) {
+  document.querySelector('.weather-icon').textContent = weatherIcon(data.condition_cn);
+  document.querySelector('.current-temp').innerHTML = data.temp + '<sup>°C</sup>';
+  document.querySelector('.condition').textContent = data.condition_cn;
+  document.querySelector('.feels').textContent = '体感温度 ' + data.feels_like + '°C';
+  document.querySelector('.date').textContent = data.date.replace(/-/g,'年').replace(/(\d{4})年(\d{2})年(\d{2})/,'$1年$2月$3日') + ' · ' + data.weekday_cn;
+  document.querySelector('.update').textContent = '观测时间 10:30 MVT · ' + data.station;
+
+  // info bar
+  const items = document.querySelectorAll('.info-item');
+  items[0].querySelector('.info-value').textContent = data.feels_like + '°C';
+  items[1].querySelector('.info-value').textContent = data.humidity + '%';
+  items[2].querySelector('.info-value').textContent = '↗ ' + data.wind_level + '级';
+  items[2].querySelector('.info-label').textContent = data.wind_dir + '风';
+  items[2].querySelector('.info-sub').textContent = data.wind_kmh + ' km/h';
+  items[3].querySelector('.info-value').textContent = data.aqi;
+
+  // sun
+  document.querySelectorAll('.sun-time')[0].textContent = data.sunrise;
+  document.querySelectorAll('.sun-time')[1].textContent = data.sunset;
+
+  // forecast
+  const cards = document.querySelectorAll('.forecast-card');
+  data.forecast.forEach((f, i) => {
+    if (!cards[i]) return;
+    cards[i].querySelector('.fc-day').textContent = f.day;
+    cards[i].querySelector('.fc-icon').textContent = f.icon;
+    cards[i].querySelector('.fc-high').textContent = f.high + '°';
+    cards[i].querySelector('.fc-low').textContent = f.low + '°';
+    cards[i].querySelector('.fc-rain').textContent = '💧 ' + f.rain + 'mm';
+  });
+}
+
+/* ── ENTRY: Load from engine or fallback to defaults ── */
+(async function(){
+  let data = DEFAULT_WEATHER;
+  try {
+    // Try loading from the simulation engine's state.json
+    // In production, use: '../sim-engine/data/state.json' or a daily JSON snapshot
+    const resp = await fetch('../sim-engine/data/state.json');
+    if (resp.ok) {
+      const state = await resp.json();
+      const w = state.weather || {};
+      // Map engine weather fields to widget fields
+      data.condition_cn = w.condition || data.condition_cn;
+      data.temp = w.temp_high || data.temp;
+      data.humidity = w.humidity || data.humidity;
+      data.wind_kmh = w.wind_kmh || data.wind_kmh;
+      data.date = state.date || data.date;
+      // Convert wind
+      if (data.wind_kmh < 12) data.wind_level = 2;
+      else if (data.wind_kmh < 20) data.wind_level = 3;
+      else data.wind_level = 4;
+    }
+  } catch(e) {
+    console.log('[Weather Widget] Engine not found, using defaults. Path: ../sim-engine/data/state.json');
+  }
+  renderWeather(data);
+
+  /* DEBUG: Show state.json content */
+  try {
+    const resp2 = await fetch('../sim-engine/data/state.json');
+    if (resp2.ok) {
+      const raw = await resp2.json();
+      document.getElementById('data-debug').style.display = 'block';
+      document.getElementById('data-debug').textContent = '📡 STATE.JSON RAW DATA:\n' + JSON.stringify(raw, null, 2);
+    }
+  } catch(e) {}
+})();
+</script>
+
+</body>
+</html>

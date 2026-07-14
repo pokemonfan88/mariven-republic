@@ -1,0 +1,330 @@
+{
+  "_meta": {
+    "version": "1.1",
+    "created": "2026-07-10",
+    "last_updated": "2026-07-10",
+    "description": "马里文共和国 (Republic of Mariven) 完整国家设定 — 模拟引擎数据源",
+    "sections_completed": ["identity", "symbols", "geography", "language", "demographics", "politics", "economy", "infrastructure", "international", "history_milestones", "public_services", "deep_culture", "science_environment_digital", "gap_fill_tier1", "gap_fill_tier2", "gap_fill_tier3"],
+    "total_worldbuilding_docs": 63
+  },
+
+  "identity": {
+    "name_zh": "马里文共和国",
+    "name_en": "Republic of Mariven",
+    "name_native": "Republika Mariven",
+    "demonym_zh": "马里文人",
+    "demonym_en": "Marivenese",
+    "founded": 1970,
+    "independence_day": "1970-10-10",
+    "independence_from": "英国",
+    "capital": "卡托拉市",
+    "capital_en": "Katora City",
+    "motto_native": "Filemu, Saoloto, Tasi",
+    "motto_zh": "和平、自由、团结",
+    "anthem": "Mariven, To Tahi"
+  },
+
+  "symbols": {
+    "flag_description": "深蓝底色 + 左上白星 + 右侧绿色斜带两道金边",
+    "flag_colors": ["深蓝 #00205B", "白", "绿 #009A44", "金 #FFD100"],
+    "national_flower": "Pua Kula (红姜花, Alpinia purpurata)",
+    "national_bird": "Sikalé (马里文翠鸟, Todiramphus marivenesis)",
+    "national_dish": "Kokoda (椰奶生鱼沙律)",
+    "national_sport": "橄榄球 (Rugby Union)"
+  },
+
+  "geography": {
+    "region": "南太平洋",
+    "coordinates": {"lat": -17.0, "lon": 178.0},
+    "total_area_km2": 14820,
+    "eez_km2": 1290000,
+    "highest_point": {"name": "塔普山 (Mount Tapu)", "elevation_m": 1324},
+    "climate_type": "热带海洋性",
+    "wet_season": [11, 12, 1, 2, 3, 4],
+    "dry_season": [5, 6, 7, 8, 9, 10],
+    "cyclone_season": [11, 12, 1, 2, 3, 4],
+    "avg_temp_min": 22,
+    "avg_temp_max": 31,
+    "annual_rainfall_mm": 2800,
+    "natural_resources": ["金矿", "铜矿", "银矿", "铝土矿", "森林", "渔业", "水力"],
+    "forest_cover_pct": 55.0,
+    "arable_land_pct": 12.0,
+    "islands": [
+      {"name_zh": "马卡迪岛", "name_en": "Makadi Island", "type": "main", "area_km2": 11800, "population": 910000, "description": "主岛，全国政治经济文化中心"},
+      {"name_zh": "蒂莫岛", "name_en": "Timo Island", "type": "small", "area_km2": 1450, "population": 150000, "description": "农业和渔业岛，卡瓦之岛"},
+      {"name_zh": "佩拉岛", "name_en": "Pela Island", "type": "small", "area_km2": 980, "population": 85000, "description": "旅游天堂岛"},
+      {"name_zh": "鲁瓦岛", "name_en": "Ruwa Island", "type": "small", "area_km2": 590, "population": 55000, "description": "矿业岛"}
+    ]
+  },
+
+  "language": {
+    "name": "马里文语 (Marivenese / Marivé)",
+    "family": "南岛语系 → 大洋洲语族",
+    "official_languages": ["马里文语", "英语"],
+    "writing_system": "拉丁字母",
+    "speakers": 980000,
+    "word_order": "VSO/SVO",
+    "features": {
+      "plural": "首音节重叠 (kana → kakana)",
+      "tense": "前缀小词 (te- 过去, ka- 将来)",
+      "possession": "被领有者 + ni + 领有者 (uma ni Mariven)",
+      "negation": "句首 + sé",
+      "question": "句首 + va"
+    }
+  },
+
+  "demographics": {
+    "total_population": 1200000,
+    "population_growth_rate_pct": 0.8,
+    "median_age": 27.8,
+    "birth_rate": 2.3,
+    "life_expectancy": 69.2,
+    "urbanization_pct": 53.6,
+    "literacy_pct": 94.2,
+    "ethnic_groups": {
+      "indigenous": {"name": "马里文原住民", "pct": 58, "population": 696000},
+      "indo_marivenese": {"name": "马里文-印度裔", "pct": 28, "population": 336000},
+      "european": {"name": "欧洲裔", "pct": 6, "population": 72000},
+      "chinese": {"name": "华裔", "pct": 4, "population": 48000},
+      "pacific_islander": {"name": "其他太平洋岛民", "pct": 4, "population": 48000}
+    },
+    "religions": {
+      "christian": 64,
+      "hindu": 22,
+      "islam": 5,
+      "traditional": 6,
+      "none_other": 3
+    }
+  },
+
+  "politics": {
+    "system": "议会制共和国",
+    "parliament": {"type": "一院制", "seats": 78, "term_years": 5},
+    "president": {"name": "埃莱娜·瓦卡洛", "name_en": "Elena Vakalo", "since": "2021-11-15", "role": "礼仪性元首"},
+    "prime_minister": {"name": "托马斯·马卡里", "name_en": "Thomas Makari", "since": "2022-05-22", "party": "马里文联合党 (MUP)"},
+    "next_election": "2027-05",
+    "parties": [
+      {"name": "马里文联合党 (MUP)", "ideology": "中右-自由市场", "seats": 32},
+      {"name": "民主进步联盟 (DPA)", "ideology": "中左-社会民主", "seats": 25},
+      {"name": "人民行动党 (PAP)", "ideology": "左翼-劳工权益", "seats": 12},
+      {"name": "原住民权益党 (IRP)", "ideology": "传统主义", "seats": 6},
+      {"name": "绿色未来党 (GFP)", "ideology": "环保主义", "seats": 2}
+    ],
+    "provinces": 7,
+    "province_list": ["卡托拉首都省", "西部省", "中部高原省", "东岸省", "蒂莫省", "佩拉省", "鲁瓦省"]
+  },
+
+  "economy": {
+    "gdp_nominal_mvl": "163.5亿 MVL",
+    "gdp_nominal_usd": 7.5,
+    "gdp_per_capita_usd": 6250,
+    "gdp_growth_pct": 3.1,
+    "inflation_pct": 2.4,
+    "unemployment_pct": 5.8,
+    "youth_unemployment_pct": 18.2,
+    "public_debt_pct_gdp": 78.9,
+    "current_account_pct_gdp": -8.5,
+    "fiscal_deficit_pct_gdp": -3.8,
+    "foreign_reserves_usd_billions": 0.62,
+    "fdi_usd_billions": 0.18,
+    "remittances_usd_billions": 0.21,
+    "currency": {"name": "马里文里拉", "code": "MVL", "symbol": "L⃗", "rate_to_usd": 2.18},
+    "sector_gdp": {
+      "agriculture_mining": 14.2,
+      "industry": 17.8,
+      "services": 57.4,
+      "other": 10.6
+    },
+    "sector_employment": {
+      "agriculture": 26.5,
+      "industry": 15.3,
+      "services": 58.2
+    },
+    "exports_top": ["金矿", "矿泉水", "成衣", "冷冻鱼", "原糖", "卡瓦", "木材"],
+    "imports_top": ["精炼石油", "机械设备", "汽车", "食品", "电子产品"],
+    "trade_partners_export": ["澳大利亚", "美国", "新西兰", "中国", "欧盟"],
+    "trade_partners_import": ["新加坡", "澳大利亚", "中国", "新西兰", "美国"],
+    "tourism": {
+      "annual_visitors_millions": 1.1,
+      "revenue_mvl_billions": 7.5,
+      "gdp_share_direct_pct": 10,
+      "employment": 38000,
+      "top_source_markets": ["澳大利亚 35%", "新西兰 22%", "美国 10%", "中国 8%", "欧洲 12%"]
+    }
+  },
+
+  "infrastructure": {
+    "airports_international": ["卡托拉国际机场 (KTR)", "佩拉国际机场 (PLA)"],
+    "ports": ["卡托拉港 (商业)", "马卡迪港 (散货)", "佩拉港 (邮轮)", "鲁瓦港 (矿业)"],
+    "road_km": 3820,
+    "road_paved_pct": 43,
+    "electrification_pct": 92,
+    "renewable_energy_pct": 45,
+    "internet_penetration_pct": 76,
+    "mobile_penetration_pct": 118,
+    "5g_status": "建设中 (2025启动)"
+  },
+
+  "international": {
+    "un_member_since": 1970,
+    "commonwealth_member": true,
+    "pif_member": true,
+    "wto_member_since": 2002,
+    "fictional_neighbors": [
+      {"name": "塔诺阿共和国", "name_en": "Republic of Tanoa", "population": 650000, "relations": "友好 (渔业重叠区争议)"},
+      {"name": "科罗联邦", "name_en": "Federation of Koro", "population": 380000, "relations": "复杂 (政治不稳定、难民问题)"}
+    ]
+  },
+
+  "public_services": {
+    "healthcare": {
+      "expenditure_pct_gdp": 4.6,
+      "doctors_per_1000": 0.9,
+      "beds_per_1000": 2.1,
+      "infant_mortality_per_1000": 16.2,
+      "maternal_mortality_per_100k": 48,
+      "life_expectancy": 69.2,
+      "immunization_pct": 91,
+      "health_insurance_coverage_pct": 68,
+      "system_type": "全民基本医保 + 自费补充 (NHIS)",
+      "main_hospital": "卡托拉总医院 (420床)",
+      "total_hospitals": 6,
+      "health_centers": 22,
+      "village_posts": 95,
+      "key_challenges": ["糖尿病(14.2%)", "医护移民流失(年8%)", "非传染性疾病上升", "外岛医疗资源不足"]
+    },
+    "social_welfare": {
+      "pension_system": "强制储蓄 NPS + 最低保障",
+      "pension_age": 60,
+      "unemployment_insurance": "无全国性制度",
+      "poverty_rate_pct": 14.8,
+      "extreme_poverty_pct": 2.2,
+      "gini_coefficient": 0.38,
+      "child_benefit": "$45 MVL/月/子女",
+      "family_assistance_households": 15500,
+      "disability_allowance": "$150 MVL/月",
+      "senior_citizens_allowance": "$120 MVL/月",
+      "informal_sector_pct": 35,
+      "key_challenges": ["非正式部门无社保", "老龄化趋势", "侨汇过度依赖"]
+    },
+    "police": {
+      "total_force": 1850,
+      "ratio_per_population": "1:649",
+      "commissioner": "维利亚梅·索卡 (Viliame Soka)",
+      "homicide_rate_per_100k": 1.8,
+      "public_trust_pct": 52,
+      "recent_reforms": ["执法记录仪(2025)", "独立投诉委员会(2023)", "警察改革法(2025)"],
+      "key_challenges": ["毒品转运", "2021年内部腐败丑闻余波", "少数族裔信任度偏低"]
+    },
+    "fire_emergency": {
+      "firefighters": 420,
+      "fire_stations": 12,
+      "annual_calls": 6200,
+      "key_challenges": ["外岛设备老旧", "农村无专职消防"]
+    },
+    "taxation": {
+      "tax_to_gdp_pct": 19.5,
+      "personal_income_tax": "0-29% (5级距)",
+      "corporate_tax_standard": 20,
+      "vat_rate": 15,
+      "revenue_authority": "马里文税务局 (MRCA)",
+      "informal_economy_estimate_pct": 30,
+      "key_controversies": ["VAT上调(2023)", "含糖饮料税提案争议", "矿业税实际税率争议"]
+    },
+    "civil_service": {
+      "total_employees": 22500,
+      "workforce_share_pct": 5.8,
+      "wage_bill_pct_govt_expenditure": 22,
+      "key_issues": ["薪资占比过高(IMF压力)", "教师护士流失", "族裔代表性不足"]
+    },
+    "immigration": {
+      "passport_rank": 58,
+      "visa_free_countries": 92,
+      "dual_citizenship": "允许",
+      "naturalization_years": 5,
+      "undocumented_estimate": 4500,
+      "brain_drain_annual": 2800,
+      "key_concerns": ["科罗联邦非法移民", "护士教师人才外流"]
+    },
+    "statistics_bureau": {
+      "name": "马里文国家统计局 (MBOS)",
+      "census_frequency_years": 10,
+      "last_census": 2020,
+      "open_data_portal": "data.gov.mv",
+      "key_monthly_releases": ["CPI(15日)", "旅游数据(20日)", "贸易(30日)", "GDP(季末+90天)", "劳动力(季末+45天)"]
+    }
+  },
+
+  "deep_culture": {
+    "literature": {
+      "major_authors": ["艾萨克·马塞瓦(1938-2012)", "拉韦娜·帕特尔(1962-)", "卡洛·安达(1975-)", "梅里·塔希瓦(1988-)", "班杰明·吴(1945-2018)"],
+      "key_works": ["孤独的火山(1972)", "甘蔗田的女人(2004)", "海平面以上(2020)", "翠鸟之歌(2023)"],
+      "literary_festival": "卡托拉文学节(年度9月)",
+      "writing_language_debate": "母语派 vs 英语派 vs 融合派"
+    },
+    "visual_arts": {
+      "traditional_crafts": ["Tapa树皮布", "木雕(Tavatava)", "编织(Vava)"],
+      "contemporary_artists": ["利蒂亚·纳卡西(海洋塑料艺术)", "拉梅什·昌德(摄影)", "梅瓦·索拉(涂鸦)"],
+      "major_galleries": ["国家美术馆", "太平洋当代艺术中心"],
+      "annual_auction_value": "约$320万MVL"
+    },
+    "architecture": {
+      "styles": ["传统Bure", "英国热带殖民", "热带现代主义", "后殖民民族风格"],
+      "heritage_buildings": "128栋法定保护",
+      "key_buildings": ["总统府(1892)", "议会大厦(1903)", "储备银行大厦(1968)", "太平洋酒店(1972)"],
+      "design_principles": ["人字坡顶", "Tapa几何格栅", "回廊文化", "被动冷却"]
+    },
+    "film": {
+      "annual_features": "3-5部",
+      "key_directors": ["塔诺阿·蒂瓦(国际知名)", "普里娅·纳拉扬(纪录片)", "洛科·马拉马(数字原生)"],
+      "film_festival": "卡托拉国际电影节(KIFF,年度6月)",
+      "netflix_breakthrough": "翠鸟之歌(2023)全球点击2800万"
+    },
+    "museums": {
+      "national_museum": "卡托拉市(旧监狱建筑,1975年成立)",
+      "total_collection": "8500件",
+      "unesco_world_heritage": "塔普山文化景观(2018年列入)",
+      "tentative_list": ["卡托拉殖民建筑群", "鲁瓦雨林", "纳瓦拉传统村落"]
+    },
+    "cost_of_living": {
+      "typical_monthly_income": "$2,200MVL",
+      "city_1bed_rent": "$650-900MVL/月",
+      "bus_fare": "$1.20MVL",
+      "rice_5kg": "$8.50MVL",
+      "restaurant_meal": "$10-15MVL",
+      "gasoline_per_liter": "$2.85MVL",
+      "house_price_per_sqm": "$4,200-6,500MVL"
+    },
+    "urban_transport": {
+      "main_bus_system": "卡托拉巴士公司(22线路,85辆车)",
+      "daily_ridership": 40000,
+      "taxi_start_fare": "$4.00MVL",
+      "interisland_ferry": "$28-55MVL",
+      "key_project": "卡托拉轻轨(可行性研究, $2.8亿MVL)",
+      "challenges": ["公交老旧(平均11年)", "市中心1,200停车位缺口", "25%主干道无人行道"]
+    },
+    "traditional_dress": {
+      "core_garment": "Sulu(男女皆穿,围裙式)",
+      "wedding_dress": "Tapa手工礼服(Masi Kesa, $800-2,500)",
+      "key_material": "Tapa树皮布(手工捶打+天然染料)",
+      "tattoo_tradition": "Veiqia(女性纹身,2010年代复兴)",
+      "modern_fashion": "Tanoa Streetwear + 梅雷·瓦卡塔瓦高定"
+    }
+  },
+
+  "history_milestones": [
+    {"year": -1500, "event": "南岛语族航海者首次定居"},
+    {"year": 1842, "event": "英国探险家登陆"},
+    {"year": 1874, "event": "成为英国保护领"},
+    {"year": 1878, "event": "开始引入印度契约劳工"},
+    {"year": 1942, "event": "太平洋战争盟军补给基地"},
+    {"year": 1970, "event": "正式独立"},
+    {"year": 1987, "event": "第二次内战爆发 (158,000人死亡)"},
+    {"year": 1989, "event": "停火/真相与和解委员会成立"},
+    {"year": 2002, "event": "加入 WTO"},
+    {"year": 2015, "event": "佩拉岛国际机场建成"},
+    {"year": 2020, "event": "新冠疫情冲击 (GDP -12%)"},
+    {"year": 2023, "event": "鲁瓦岛新金矿投产"},
+    {"year": 2025, "event": "中马自贸协定签署"}
+  ]
+}

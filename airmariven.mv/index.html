@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Air Mariven — Fly the Spirit of the Pacific | 马里文航空</title>
+<style>
+  :root {
+    --air-teal: #00778b;
+    --air-dark: #004c5a;
+    --air-gold: #f0a830;
+    --air-light: #e6f4f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #f5f8f9; color: #222; line-height: 1.6; }
+
+  /* TOP BAR */
+  .topbar { background: var(--air-dark); color: #8cccd5; font-size: 12px; padding: 6px 0; }
+  .topbar .inner { max-width: 1140px; margin: 0 auto; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; }
+  .topbar a { color: #fff; text-decoration: none; margin-left: 18px; }
+
+  /* HEADER */
+  .header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 12px 0; position: sticky; top: 0; z-index: 100; }
+  .header .inner { max-width: 1140px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .logo { font-size: 32px; }
+  .brand h1 { font-size: 22px; color: var(--air-teal); font-weight: 700; letter-spacing: -0.5px; }
+  .brand .tagline { font-size: 11px; color: #888; margin-top: -2px; }
+  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links a { text-decoration: none; color: #444; font-size: 14px; font-weight: 500; }
+  .nav-links a:hover { color: var(--air-teal); }
+  .nav-links .btn-book { background: var(--air-gold); color: #fff; padding: 8px 18px; border-radius: 20px; font-weight: 700; }
+  .nav-links .btn-book:hover { background: #d89520; color: #fff; }
+
+  /* HERO BOOKING */
+  .hero { background: linear-gradient(135deg, #004c5a 0%, #007b8f 50%, #0098a8 100%); color: #fff; padding: 50px 0 60px; }
+  .hero .inner { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+  .hero h2 { font-size: 32px; font-weight: 300; margin-bottom: 6px; }
+  .hero h2 strong { font-weight: 700; }
+  .hero p { opacity: .85; margin-bottom: 28px; font-size: 15px; }
+
+  .booking-widget { background: #fff; border-radius: 14px; padding: 28px 32px; box-shadow: 0 8px 32px rgba(0,0,0,.18); color: #222; display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+  .booking-field { flex: 1; min-width: 140px; }
+  .booking-field label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 4px; text-transform: uppercase; }
+  .booking-field select, .booking-field input { width: 100%; padding: 12px 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px; background: #fafafa; }
+  .booking-field select:focus, .booking-field input:focus { border-color: var(--air-teal); outline: none; background: #fff; }
+  .btn-search { background: var(--air-gold); color: #fff; border: none; padding: 13px 36px; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-search:hover { background: #d89520; }
+  .roundtrip-toggle { display: flex; gap: 24px; margin-bottom: 18px; }
+  .roundtrip-toggle label { font-size: 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  /* CONTENT */
+  .section { max-width: 1140px; margin: 0 auto; padding: 40px 24px; }
+  .section h3 { font-size: 24px; color: var(--air-dark); margin-bottom: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* CARDS */
+  .card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .card-img { width: 100%; height: 180px; object-fit: cover; }
+  .card-body { padding: 18px 20px; }
+  .card-body h4 { font-size: 17px; margin-bottom: 6px; color: var(--air-dark); }
+  .card-body p { font-size: 13px; color: #666; }
+  .card-body .price { font-size: 22px; color: var(--air-teal); font-weight: 700; margin-top: 10px; }
+  .card-body .price small { font-size: 13px; color: #999; font-weight: 400; }
+
+  /* ALERT BAR */
+  .alert-bar { background: #fff3cd; border: 1px solid #ffc107; padding: 14px 24px; font-size: 14px; text-align: center; font-weight: 500; }
+  .alert-bar a { color: #856404; font-weight: 700; }
+
+  /* TABLE */
+  table.schedule { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.schedule th { background: var(--air-light); color: var(--air-dark); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #ccc; font-size: 12px; text-transform: uppercase; }
+  table.schedule td { padding: 12px; border-bottom: 1px solid #eee; }
+  table.schedule .flight-no { font-weight: 700; color: var(--air-teal); }
+  table.schedule .status { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  table.schedule .status.on-time { background: #d4edda; color: #155724; }
+  table.schedule .status.delayed { background: #fff3cd; color: #856404; }
+  table.schedule .status.departed { background: #cce5ff; color: #004085; }
+
+  /* STATS ROW */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; }
+  .stat-item { background: #fff; border-radius: 12px; padding: 28px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .stat-num { font-size: 36px; font-weight: 700; color: var(--air-teal); }
+  .stat-label { font-size: 13px; color: #888; margin-top: 6px; }
+
+  /* FOOTER */
+  .footer { background: var(--air-dark); color: #8cccd5; padding: 40px 0 20px; }
+  .footer .inner { max-width: 1140px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 30px; }
+  .footer h4 { color: #fff; margin-bottom: 12px; font-size: 14px; }
+  .footer a { color: #8cccd5; text-decoration: none; font-size: 13px; display: block; margin: 4px 0; }
+  .footer .disclaimer { grid-column: 1/-1; border-top: 1px solid rgba(255,255,255,.12); padding-top: 16px; font-size: 11px; opacity: .6; margin-top: 20px; }
+
+  @media (max-width: 768px) {
+    .grid-3, .grid-4, .stats-row { grid-template-columns: 1fr 1fr; }
+    .footer .inner { grid-template-columns: 1fr 1fr; }
+    .booking-widget { flex-direction: column; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="inner">
+    <span>🇲🇻 马里文共和国国家航空公司 · 您的太平洋之翼</span>
+    <span><a href="#">EN</a> <a href="#">MV</a> <a href="#">航班状态</a> <a href="#">联系我们</a></span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="inner">
+    <div class="brand">
+      <div class="logo">✈️</div>
+      <div>
+        <h1>Air Mariven</h1>
+        <div class="tagline">Fly the Spirit of the Pacific · 马里文航空</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="#">预订</a>
+      <a href="#">航班状态</a>
+      <a href="#">办理登机</a>
+      <a href="#">航线网络</a>
+      <a href="#">会员</a>
+      <a href="#" class="btn-book">立即预订</a>
+    </div>
+  </div>
+</div>
+
+<!-- ALERT -->
+<div class="alert-bar">
+  ⚠️ 国内航线今日正常运行。MV301/MV302（卡托拉-佩拉）7月旺季每日增至6班。国际航线详情请查看<a href="#schedule">航班时刻表</a>。
+</div>
+
+<!-- HERO WITH BOOKING -->
+<div class="hero">
+  <div class="inner">
+    <h2>从卡托拉出发 — <strong>飞越太平洋</strong></h2>
+    <p>4条国内航线连接马里文四岛 · 7条国际航线通往3大洲 · ATR 72 涡轮螺旋桨 + 波音787梦想客机</p>
+
+    <div class="booking-widget">
+      <div class="booking-field" style="flex: 2; min-width: 200px;">
+        <label>出发地</label>
+        <select>
+          <option>卡托拉国际机场 (KTR)</option>
+          <option>佩拉国际机场 (PLA)</option>
+        </select>
+      </div>
+      <div class="booking-field" style="flex: 2; min-width: 200px;">
+        <label>目的地</label>
+        <select>
+          <option>蒂莫岛·蒂莫机场 (TMO)</option>
+          <option>佩拉岛·佩拉国际机场 (PLA)</option>
+          <option>鲁瓦岛·鲁瓦机场 (RWA)</option>
+          <option>马卡迪港·马卡迪机场 (MKD)</option>
+          <option>悉尼 (SYD)</option>
+          <option>奥克兰 (AKL)</option>
+          <option>香港 (HKG)</option>
+          <option>新加坡 (SIN)</option>
+          <option>洛杉矶 (LAX)</option>
+        </select>
+      </div>
+      <div class="booking-field" style="min-width: 130px;">
+        <label>出发日期</label>
+        <input type="date" value="2026-07-13">
+      </div>
+      <div class="booking-field" style="min-width: 130px;">
+        <label>返回日期</label>
+        <input type="date" value="2026-07-20">
+      </div>
+      <div class="booking-field" style="min-width: 80px;">
+        <label>乘客</label>
+        <select><option>1 人</option><option>2 人</option><option>3 人</option><option>4+人</option></select>
+      </div>
+      <button class="btn-search">🔍 搜索航班</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="section">
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num">4</div>
+      <div class="stat-label">国内航线 · 连接四岛</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">7</div>
+      <div class="stat-label">国际航线 · 跨越太平洋</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">18万</div>
+      <div class="stat-label">年客运量 · 2025年</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">1972</div>
+      <div class="stat-label">成立 · 独立后第二年</div>
+    </div>
+  </div>
+</div>
+
+<!-- FLIGHT SCHEDULE: DOMESTIC -->
+<div class="section" id="schedule">
+  <h3>🛩️ 国内航班时刻表</h3>
+  <table class="schedule">
+    <tr><th>航班号</th><th>航线</th><th>起飞</th><th>到达</th><th>飞行时间</th><th>班次</th><th>今日状态</th><th>单程票价起</th></tr>
+    <tr>
+      <td class="flight-no">MV201</td><td>卡托拉 → 蒂莫</td><td>07:30</td><td>08:05</td><td>35分钟</td><td>每日3班</td>
+      <td><span class="status on-time">准点</span></td><td>$82 MVL</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV202</td><td>蒂莫 → 卡托拉</td><td>08:45</td><td>09:20</td><td>35分钟</td><td>每日3班</td>
+      <td><span class="status on-time">准点</span></td><td>$82 MVL</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV301</td><td>卡托拉 → 佩拉</td><td>06:30</td><td>07:20</td><td>50分钟</td><td>每日6班（旺季）</td>
+      <td><span class="status departed">已起飞</span></td><td>$105 MVL</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV302</td><td>佩拉 → 卡托拉</td><td>08:00</td><td>08:50</td><td>50分钟</td><td>每日6班（旺季）</td>
+      <td><span class="status on-time">准点</span></td><td>$105 MVL</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV401</td><td>卡托拉 → 鲁瓦</td><td>09:15</td><td>10:10</td><td>55分钟</td><td>每日2班</td>
+      <td><span class="status on-time">准点</span></td><td>$118 MVL</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV402</td><td>鲁瓦 → 卡托拉</td><td>16:00</td><td>16:55</td><td>55分钟</td><td>每日2班</td>
+      <td><span class="status delayed">延误 20分</span></td><td>$118 MVL</td>
+    </tr>
+  </table>
+</div>
+
+<!-- FLIGHT SCHEDULE: INTERNATIONAL -->
+<div class="section">
+  <h3>🌏 国际航班</h3>
+  <table class="schedule">
+    <tr><th>航班号</th><th>目的地</th><th>起飞</th><th>飞行时间</th><th>每周班次</th><th>机型</th><th>今日状态</th><th>往返票价起</th></tr>
+    <tr>
+      <td class="flight-no">MV601</td><td>悉尼 (SYD)</td><td>08:30</td><td>4小时15分</td><td>每日2班</td><td>波音787-8</td>
+      <td><span class="status on-time">准点</span></td><td>$580</td>
+    </tr>
+    <tr>
+      <td class="flight-no">NZ58</td><td>奥克兰 (AKL)</td><td>14:00</td><td>3小时10分</td><td>每日1班</td><td>空客A320</td>
+      <td><span class="status on-time">准点</span></td><td>$420</td>
+    </tr>
+    <tr>
+      <td class="flight-no">VA142</td><td>布里斯班 (BNE)</td><td>11:20</td><td>3小时50分</td><td>每周5班</td><td>波音737-800</td>
+      <td><span class="status on-time">准点</span></td><td>$480</td>
+    </tr>
+    <tr>
+      <td class="flight-no">CX620</td><td>香港 (HKG)</td><td>22:30</td><td>10小时20分</td><td>每周3班</td><td>空客A350</td>
+      <td><span class="status on-time">准点</span></td><td>$1,120</td>
+    </tr>
+    <tr>
+      <td class="flight-no">SQ268</td><td>新加坡 (SIN)</td><td>21:00</td><td>9小时50分</td><td>每周3班</td><td>波音787-9</td>
+      <td><span class="status on-time">准点</span></td><td>$980</td>
+    </tr>
+    <tr>
+      <td class="flight-no">MV701</td><td>洛杉矶 (LAX) ✦季节</td><td>10:00</td><td>11小时40分</td><td>每周2班</td><td>波音787-9</td>
+      <td><span class="status on-time">准点</span></td><td>$1,450</td>
+    </tr>
+    <tr>
+      <td class="flight-no">FJ220</td><td>纳迪·斐济 (NAN)</td><td>15:30</td><td>2小时05分</td><td>每周4班</td><td>ATR 72-600</td>
+      <td><span class="status on-time">准点</span></td><td>$280</td>
+    </tr>
+  </table>
+</div>
+
+<!-- SPECIAL DEALS + DESTINATIONS -->
+<div class="section">
+  <div class="grid-2">
+    <!-- FLEET + ABOUT -->
+    <div class="card">
+      <div class="card-body">
+        <h4>✈️ 关于 Air Mariven</h4>
+        <p style="font-size:14px;margin-top:8px;">
+          成立于1972年——独立后的第二年——马里文航空是国家航空公司，总部位于卡托拉国际机场。机队包括：2架 ATR 72-600（68座、涡轮螺旋桨——四岛之间的天空之桥）、1架 DHC-6 Twin Otter（19座——最偏远跑道的坚守者）、波音787梦想客机和空客A320系列（国际航线）。
+        </p>
+        <p style="font-size:14px;margin-top:8px;">
+          年客运量约18万人次。国内线全年运营——外岛天气多变，准时率约72%——被民间戏称为"Air Maybe"（"也许能飞航空"）。但我们更愿意称自己为——"准时的不多——但每一班都尽量"。
+        </p>
+        <p style="font-size:14px;margin-top:8px;">
+          国际线通达悉尼、布里斯班、奥克兰、香港、新加坡、洛杉矶——以及斐济纳迪。<strong>2025年新增香港航线</strong>——中马自由贸易协定签署后——中国游客可直接飞抵佩拉岛。
+        </p>
+        <p style="font-size:13px;color:#888;margin-top:8px;">
+          📍 总部：卡托拉国际机场 · 维多利亚大道南端 · <a href="#" style="color:var(--air-teal);">查看机场交通指南</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- DESTINATIONS -->
+    <div class="card">
+      <div class="card-body">
+        <h4>🏝️ 国内目的地</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div style="padding:14px;background:#f8fafc;border-radius:8px;">
+            <strong>蒂莫岛 (TMO)</strong>
+            <div style="font-size:13px;color:#666;margin-top:3px;">卡瓦之乡 · 35分钟飞行 · 每日3班 · $82起</div>
+            <div style="font-size:12px;color:var(--air-teal);margin-top:4px;">🌿 卡瓦收获节（3月）· 传统酋邦文化</div>
+          </div>
+          <div style="padding:14px;background:#f8fafc;border-radius:8px;">
+            <strong>佩拉岛 (PLA)</strong>
+            <div style="font-size:13px;color:#666;margin-top:3px;">珊瑚天堂 · 50分钟飞行 · 每日6班 · $105起</div>
+            <div style="font-size:12px;color:var(--air-teal);margin-top:4px;">🤿 蓝湖礁潜水 · 佩拉海洋节（5月）</div>
+          </div>
+          <div style="padding:14px;background:#f8fafc;border-radius:8px;">
+            <strong>鲁瓦岛 (RWA)</strong>
+            <div style="font-size:13px;color:#666;margin-top:3px;">金矿之岛 · 55分钟飞行 · 每日2班 · $118起</div>
+            <div style="font-size:12px;color:var(--air-teal);margin-top:4px;">⚒️ 鲁瓦岛之战纪念（8.6）· 雨林徒步</div>
+          </div>
+          <div style="padding:14px;background:#f8fafc;border-radius:8px;">
+            <strong>马卡迪港 (MKD)</strong>
+            <div style="font-size:13px;color:#666;margin-top:3px;">西部平原门户 · 20分钟飞行 · 每日2班 · $55起</div>
+            <div style="font-size:12px;color:var(--air-teal);margin-top:4px;">🍬 蔗田观光铁路 · 印度裔美食街区</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRAVEL INFO + CHECK-IN -->
+<div class="section">
+  <div class="grid-2">
+    <div class="card" style="background:linear-gradient(135deg,#e6f4f7,#ccecf2);">
+      <div class="card-body">
+        <h4>🛄 在线办理登机</h4>
+        <p style="font-size:14px;margin-bottom:14px;">起飞前24小时至2小时可在线办理。输入预订编号和姓氏即可。</p>
+        <div style="display:flex;gap:10px;">
+          <input type="text" placeholder="预订编号 (例: MV123456)" style="flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;">
+          <input type="text" placeholder="姓氏" style="width:140px;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px;">
+          <button style="background:var(--air-teal);color:#fff;border:none;padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer;">办理</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h4>📋 行李规定</h4>
+        <div style="font-size:14px;margin-top:8px;">
+          <p><strong>国内线</strong>：手提行李 7kg + 托运行李 15kg（经济）/ 25kg（商务）</p>
+          <p style="margin-top:6px;"><strong>国际线</strong>：手提行李 7kg + 托运行李 23kg × 2件（经济）/ 32kg × 2件（商务）</p>
+          <p style="margin-top:6px;"><strong>特殊物品</strong>：冲浪板、潜水装备请联系客服。新鲜卡瓦根只允许国内线托运。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROMO BANNER -->
+<div class="section" style="padding-top:0;">
+  <div style="background:linear-gradient(135deg,#f0a830,#e8961e);color:#fff;border-radius:14px;padding:32px 36px;text-align:center;">
+    <div style="font-size:28px;font-weight:700;margin-bottom:6px;">🌴 7月干季特惠 — 佩拉岛往返 $165 起</div>
+    <div style="font-size:15px;opacity:.9;">卡托拉↔佩拉 · 每日6班 · 预订截止7月31日 · 旅行日期至2026年9月30日</div>
+    <button style="margin-top:16px;background:#fff;color:#e8961e;border:none;padding:12px 32px;border-radius:24px;font-size:16px;font-weight:700;cursor:pointer;">立即预订</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="inner">
+    <div>
+      <h4>预订与服务</h4>
+      <a href="#">航班预订</a>
+      <a href="#">在线登机</a>
+      <a href="#">航班状态</a>
+      <a href="#">行李查询</a>
+      <a href="#">退改签</a>
+    </div>
+    <div>
+      <h4>航线网络</h4>
+      <a href="#">国内航线</a>
+      <a href="#">国际航线</a>
+      <a href="#">佩拉岛旅游套餐</a>
+      <a href="#">合作伙伴航空公司</a>
+    </div>
+    <div>
+      <h4>会员与优惠</h4>
+      <a href="#">Tanoa Club 常旅客</a>
+      <a href="#">特价机票</a>
+      <a href="#">团体预订</a>
+      <a href="#">学生票</a>
+    </div>
+    <div>
+      <h4>关于我们</h4>
+      <a href="#">公司简介</a>
+      <a href="#">加入机队</a>
+      <a href="#">联系我们</a>
+      <a href="#">媒体中心</a>
+    </div>
+    <div>
+      <h4>合作伙伴</h4>
+      <a href="#">Qantas</a>
+      <a href="#">Air New Zealand</a>
+      <a href="#">Cathay Pacific</a>
+      <a href="#">Singapore Airlines</a>
+      <a href="#">Virgin Australia</a>
+    </div>
+    <div class="disclaimer">
+      © 2026 Air Mariven · 马里文共和国国家航空公司 · 卡托拉国际机场 · KTR<br>
+      本站显示的票价均为单程起价，不含税和燃油附加费。实际票价可能因航班日期和预订舱位而异。Air Mariven 保留随时更改票价、航班时刻和条款的权利。<br><br>
+      Air Mariven is the national carrier of the Republic of Mariven. Member of the International Air Transport Association (IATA: MV).
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

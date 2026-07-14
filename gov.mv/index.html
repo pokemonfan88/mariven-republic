@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Republic of Mariven — Government Portal | 马里文共和国政府门户</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+<script>
+  tailwind.config = { theme: { extend: { colors: { navy:'#003087', gold:'#E8B923', cream:'#f8f1e3', deep:'#001f33' }}}}
+</script>
+<style>
+  .hero-bg { background-image: linear-gradient(rgba(0,48,135,0.5), rgba(0,30,70,0.65)), url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920'); background-size:cover; background-position:center; }
+  .tapa-pattern { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M10 20 L20 10 L30 20 L20 30Z' fill='none' stroke='%23E8B923' stroke-width='0.6' opacity='0.15'/%3E%3C/svg%3E"); }
+  .card-news:hover { border-color: #E8B923; }
+  .island-card:hover img { transform: scale(1.05); }
+  .island-card img { transition: transform 0.4s ease; }
+  html { scroll-behavior: smooth; }
+  @media (max-width:768px){ .island-card.flipped .island-back { display:block !important; } }
+  .island-back { display: none; }
+  /* lang toggle button */
+  .lang-btn { cursor: pointer; padding: 4px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.3); font-size: 12px; transition: all .2s; }
+  .lang-btn.active { background: #E8B923; color: #003087; border-color: #E8B923; font-weight: 700; }
+</style>
+</head>
+<body class="bg-cream text-gray-800 font-sans lang-en" id="body-root">
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav class="bg-navy text-white sticky top-0 z-50 shadow-lg">
+  <div class="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex justify-between items-center">
+    <a href="#" class="flex items-center gap-3 shrink-0">
+      <div class="w-11 h-11 bg-gold rounded-full flex items-center justify-center text-2xl font-extrabold text-navy">🛡️</div>
+      <div>
+        <span class="text-xl sm:text-2xl font-bold tracking-tight">Mariven</span>
+        <span class="block text-[10px] tracking-[3px] -mt-1 opacity-70 en">GOVERNMENT PORTAL</span>
+        <span class="block text-[10px] tracking-[3px] -mt-1 opacity-70 zh">政府门户</span>
+      </div>
+    </a>
+    <div class="hidden lg:flex gap-1 text-sm font-medium">
+      <a href="#" class="px-3 py-2 rounded hover:bg-white/10 transition en">Home</a>
+      <a href="#islands" class="px-3 py-2 rounded hover:bg-white/10 transition en">The Islands</a>
+      <a href="#news" class="px-3 py-2 rounded hover:bg-white/10 transition en">News</a>
+      <a href="#services" class="px-3 py-2 rounded hover:bg-white/10 transition en">Services</a>
+      <a href="#government" class="px-3 py-2 rounded hover:bg-white/10 transition en">Government</a>
+      <a href="#laws" class="px-3 py-2 rounded hover:bg-white/10 transition en">Laws &amp; Data</a>
+      <a href="#" class="px-3 py-2 rounded hover:bg-white/10 transition zh">首页</a>
+      <a href="#islands" class="px-3 py-2 rounded hover:bg-white/10 transition zh">四岛</a>
+      <a href="#news" class="px-3 py-2 rounded hover:bg-white/10 transition zh">新闻</a>
+      <a href="#services" class="px-3 py-2 rounded hover:bg-white/10 transition zh">服务</a>
+      <a href="#government" class="px-3 py-2 rounded hover:bg-white/10 transition zh">政府</a>
+      <a href="#laws" class="px-3 py-2 rounded hover:bg-white/10 transition zh">法律与数据</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="lang-btn active" data-lang="en" onclick="switchLang('en')">EN</span>
+      <span class="lang-btn" data-lang="zh" onclick="switchLang('zh')">中文</span>
+      <button onclick="openSearch()" class="bg-gold hover:bg-amber-400 text-navy px-4 py-2.5 rounded-lg font-semibold text-sm transition flex items-center gap-2">
+        <i class="fa-solid fa-magnifying-glass"></i> <span class="hidden sm:inline en">Search</span><span class="hidden sm:inline zh">搜索</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero-bg min-h-[85vh] flex items-center text-white">
+  <div class="max-w-5xl mx-auto px-6 py-20 text-center">
+    <p class="uppercase tracking-[5px] text-sm mb-4 opacity-80">Makadi · Timo · Pela · Ruwa</p>
+    <h1 class="text-5xl md:text-7xl font-extrabold leading-tight mb-6 en">Republic of<br>Mariven</h1>
+    <h1 class="text-5xl md:text-7xl font-extrabold leading-tight mb-6 zh">马里文<br>共和国</h1>
+    <p class="text-lg md:text-xl max-w-xl mx-auto mb-3 opacity-90 en">A Pacific island nation of 1.2 million — four islands, three millennia of voyaging, one indomitable spirit.</p>
+    <p class="text-lg md:text-xl max-w-xl mx-auto mb-3 opacity-90 zh">南太平洋岛国——120万人口、四座岛屿、三千年的航海史、一个不屈的灵魂。</p>
+    <p class="text-sm opacity-60 mb-10 italic en">Filemu · Saoloto · Tasi — Peace · Freedom · Unity</p>
+    <p class="text-sm opacity-60 mb-10 italic zh">Filemu · Saoloto · Tasi — 和平 · 自由 · 团结</p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="#services" class="bg-white text-navy px-8 py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition en">Government Services</a>
+      <a href="#services" class="bg-white text-navy px-8 py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition zh">政府服务</a>
+      <a href="#islands" class="border-2 border-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition en">Discover Our Islands</a>
+      <a href="#islands" class="border-2 border-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition zh">探索我们的岛屿</a>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ STATS BAR ═══════════ -->
+<section class="py-10 bg-white border-b border-gray-100">
+  <div class="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+    <div><div class="text-4xl md:text-5xl font-extrabold text-navy" data-target="1200000">1,200,000</div><div class="text-sm text-gray-500 mt-1 en">Population</div><div class="text-sm text-gray-500 mt-1 zh">人口</div></div>
+    <div><div class="text-4xl md:text-5xl font-extrabold text-navy">14,820 km²</div><div class="text-sm text-gray-500 mt-1 en">Four Islands</div><div class="text-sm text-gray-500 mt-1 zh">四座岛屿</div></div>
+    <div><div class="text-4xl md:text-5xl font-extrabold text-navy" data-target="1970">1970</div><div class="text-sm text-gray-500 mt-1 en">Independence</div><div class="text-sm text-gray-500 mt-1 zh">独立</div></div>
+    <div><div class="text-4xl md:text-5xl font-extrabold text-gold" data-target="78">78</div><div class="text-sm text-gray-500 mt-1 en">Parliament Seats</div><div class="text-sm text-gray-500 mt-1 zh">议会议席</div></div>
+  </div>
+</section>
+
+<!-- ═══════════ FOUR ISLANDS ═══════════ -->
+<section id="islands" class="py-20 tapa-pattern">
+  <div class="max-w-7xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-center mb-3 en">Our Four Islands</h2>
+    <h2 class="text-4xl font-bold text-center mb-3 zh">我们的四座岛屿</h2>
+    <p class="text-center text-gray-500 mb-12 max-w-lg mx-auto en">Each carries its own story — together they form the soul of Mariven.</p>
+    <p class="text-center text-gray-500 mb-12 max-w-lg mx-auto zh">每一座岛都有自己的故事——合在一起就是马里文的灵魂。</p>
+    <div class="grid md:grid-cols-4 gap-6">
+      <!-- Makadi -->
+      <div class="island-card group bg-white rounded-2xl overflow-hidden shadow hover:shadow-2xl transition">
+        <div class="h-48 overflow-hidden"><img src="https://images.unsplash.com/photo-1528716323782-29a87e7a48e8?w=600" alt="Makadi" class="w-full h-full object-cover"></div>
+        <div class="p-6">
+          <h3 class="font-extrabold text-xl">Makadi</h3>
+          <p class="text-sm text-gray-400 mb-2 en">Main Island · 910,000 people</p>
+          <p class="text-sm text-gray-400 mb-2 zh">主岛 · 91万人口</p>
+          <p class="text-sm text-gray-600 en">The political and economic heart — Katora City, the western sugarcane plains, the Tapu volcano, and three millennia of history beneath every footstep.</p>
+          <p class="text-sm text-gray-600 zh">政治与经济的心脏——卡托拉市、西部蔗田平原、塔普火山，以及脚下三千年的历史。</p>
+          <div class="island-back mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1"><div>📍 910,000人 · 11,200 km²</div><div>🏛️ 首府：卡托拉市</div><div>🌋 塔普火山</div></div>
+        </div>
+      </div>
+      <!-- Timo -->
+      <div class="island-card group bg-white rounded-2xl overflow-hidden shadow hover:shadow-2xl transition">
+        <div class="h-48 overflow-hidden"><img src="https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=600" alt="Timo" class="w-full h-full object-cover"></div>
+        <div class="p-6">
+          <h3 class="font-extrabold text-xl">Timo</h3>
+          <p class="text-sm text-gray-400 mb-2 en">Kava Island · 145,000 people</p>
+          <p class="text-sm text-gray-400 mb-2 zh">卡瓦之岛 · 14.5万人口</p>
+          <p class="text-sm text-gray-600 en">Home of the twelve Kava Kings — their sacred bowls have quieted wars and blessed births for over a thousand years.</p>
+          <p class="text-sm text-gray-600 zh">十二代卡瓦之王的故乡——他们的圣碗平息过战争，祝福过新生，已经一千多年。</p>
+          <div class="island-back mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1"><div>📍 145,000人 · 2,100 km²</div><div>🍵 太平洋卡瓦之都</div><div>👑 十二代卡瓦王</div></div>
+        </div>
+      </div>
+      <!-- Pela -->
+      <div class="island-card group bg-white rounded-2xl overflow-hidden shadow hover:shadow-2xl transition">
+        <div class="h-48 overflow-hidden"><img src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=600" alt="Pela" class="w-full h-full object-cover"></div>
+        <div class="p-6">
+          <h3 class="font-extrabold text-xl">Pela</h3>
+          <p class="text-sm text-gray-400 mb-2 en">Coral Paradise · 82,000 people</p>
+          <p class="text-sm text-gray-400 mb-2 zh">珊瑚天堂 · 8.2万人口</p>
+          <p class="text-sm text-gray-600 en">The Blue Lagoon — one of the world's most pristine reefs. Where divers from every continent come to be speechless underwater.</p>
+          <p class="text-sm text-gray-600 zh">蓝湖——世界上最纯净的珊瑚礁之一。从各大洲来的潜水者——在水下说不出话。</p>
+          <div class="island-back mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1"><div>📍 82,000人 · 980 km²</div><div>🤿 彩虹礁与蓝湖</div><div>✈️ 国际机场直达</div></div>
+        </div>
+      </div>
+      <!-- Ruwa -->
+      <div class="island-card group bg-white rounded-2xl overflow-hidden shadow hover:shadow-2xl transition">
+        <div class="h-48 overflow-hidden"><img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=600" alt="Ruwa" class="w-full h-full object-cover"></div>
+        <div class="p-6">
+          <h3 class="font-extrabold text-xl">Ruwa</h3>
+          <p class="text-sm text-gray-400 mb-2 en">Gold Island · 55,000 people</p>
+          <p class="text-sm text-gray-400 mb-2 zh">金矿之岛 · 5.5万人口</p>
+          <p class="text-sm text-gray-600 en">The Vatukula gold mine, dense rainforest, the WWII battlefield — and a land that never signed the Treaty of 1874.</p>
+          <p class="text-sm text-gray-600 zh">瓦图库拉金矿、茂密雨林、二战战场——以及一片从未签署1874年条约的土地。</p>
+          <div class="island-back mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1"><div>📍 55,000人 · 540 km²</div><div>⛏️ 瓦图库拉金矿</div><div>🗡️ 1942鲁瓦岛之战</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ GOVERNMENT ═══════════ -->
+<section id="government" class="py-20 bg-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-center mb-3 en">Government</h2>
+    <h2 class="text-4xl font-bold text-center mb-3 zh">政府</h2>
+    <p class="text-center text-gray-500 mb-12 max-w-lg mx-auto en">A parliamentary republic under the 1992 Constitution — born from reconciliation after the 1987–89 Civil War.</p>
+    <p class="text-center text-gray-500 mb-12 max-w-lg mx-auto zh">1992年宪法下的议会制共和国——诞生于1987-89年内战之后的和解。</p>
+    
+    <div class="grid md:grid-cols-3 gap-6 mb-12">
+      <div class="bg-cream rounded-2xl p-6 text-center">
+        <div class="text-4xl mb-3">👤</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 en">President · Head of State</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 zh">总统 · 国家元首</div>
+        <h3 class="font-extrabold text-xl">Elena Vakalo</h3>
+        <p class="text-sm text-gray-500 mt-2 en">In office since 15 November 2021. A kava farmer's daughter from Timo Island. Elected by Parliament with cross-party support.</p>
+        <p class="text-sm text-gray-500 mt-2 zh">2021年11月15日就任。蒂莫岛卡瓦农民之女。获议会跨党派支持当选。</p>
+      </div>
+      <div class="bg-cream rounded-2xl p-6 text-center border-2 border-gold">
+        <div class="text-4xl mb-3">🏛️</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 en">Prime Minister · Head of Government</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 zh">总理 · 政府首脑</div>
+        <h3 class="font-extrabold text-xl">Thomas Makari</h3>
+        <p class="text-sm text-gray-500 mt-2 en">In office since 22 May 2022. Mariven United Party (MUP) leader. Coalition: MUP (32) + PAP (12) + 1 Independent = 45/78 seats.</p>
+        <p class="text-sm text-gray-500 mt-2 zh">2022年5月22日就任。马里文联合党（MUP）领袖。执政联盟：MUP(32席)+PAP(12)+独立(1)=45/78席。</p>
+      </div>
+      <div class="bg-cream rounded-2xl p-6 text-center">
+        <div class="text-4xl mb-3">📜</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 en">Constitution</div>
+        <div class="text-xs text-gold font-bold uppercase tracking-wide mb-1 zh">宪法</div>
+        <h3 class="font-extrabold text-xl en">1992 Constitution</h3>
+        <h3 class="font-extrabold text-xl zh">1992年宪法</h3>
+        <p class="text-sm text-gray-500 mt-2 en">96 articles. Replaced the 1970 Independence Constitution. Amended 2013 — environmental rights, ICAC, data protection.</p>
+        <p class="text-sm text-gray-500 mt-2 zh">96条。取代1970年独立宪法。2013年修订——新增环境权、反腐委员会、数据保护。</p>
+      </div>
+    </div>
+
+    <h3 class="text-2xl font-bold text-center mb-8 en">Cabinet Ministers</h3>
+    <h3 class="text-2xl font-bold text-center mb-8 zh">内阁部长</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 text-center">
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Ravi Chandra</div><div class="text-xs text-gray-400 en">Finance</div><div class="text-xs text-gray-400 zh">财政</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Ana Lopes</div><div class="text-xs text-gray-400 en">Foreign Affairs</div><div class="text-xs text-gray-400 zh">外交</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Samuel Vaka</div><div class="text-xs text-gray-400 en">Home Affairs</div><div class="text-xs text-gray-400 zh">内政</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Maria Tupu</div><div class="text-xs text-gray-400 en">Education</div><div class="text-xs text-gray-400 zh">教育</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Francis Wu</div><div class="text-xs text-gray-400 en">Health</div><div class="text-xs text-gray-400 zh">卫生</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Sarah Morrison</div><div class="text-xs text-gray-400 en">Tourism</div><div class="text-xs text-gray-400 zh">旅游</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Mika Tanoa</div><div class="text-xs text-gray-400 en">Defence</div><div class="text-xs text-gray-400 zh">国防</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Petro Navala</div><div class="text-xs text-gray-400 en">Agriculture</div><div class="text-xs text-gray-400 zh">农业</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Jona Labasa</div><div class="text-xs text-gray-400 en">Climate Change</div><div class="text-xs text-gray-400 zh">气候变化</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">James Wright</div><div class="text-xs text-gray-400 en">Digital Infra</div><div class="text-xs text-gray-400 zh">数字基建</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Loko Tavi</div><div class="text-xs text-gray-400 en">Lands &amp; Resources</div><div class="text-xs text-gray-400 zh">土地资源</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Ramesh Kumar</div><div class="text-xs text-gray-400 en">Transport</div><div class="text-xs text-gray-400 zh">交通</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Viliame Ravuvu</div><div class="text-xs text-gray-400 en">Justice / AG</div><div class="text-xs text-gray-400 zh">司法/检察总长</div></div>
+      <div class="bg-cream rounded-xl p-3"><div class="font-bold text-sm">Meli Nakasi</div><div class="text-xs text-gray-400 en">Central Bank</div><div class="text-xs text-gray-400 zh">央行</div></div>
+    </div>
+    <div class="text-center mt-6"><a href="#" class="text-navy font-semibold hover:underline text-sm en">View all ministries →</a><a href="#" class="text-navy font-semibold hover:underline text-sm zh">查看全部部委 →</a></div>
+  </div>
+</section>
+
+<!-- ═══════════ SERVICES ═══════════ -->
+<section id="services" class="py-20 bg-navy text-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-center mb-3 en">Government Services</h2>
+    <h2 class="text-4xl font-bold text-center mb-3 zh">政府服务</h2>
+    <p class="text-center text-gray-300 mb-12 max-w-lg mx-auto en">Everything you need from the government — one portal.</p>
+    <p class="text-center text-gray-300 mb-12 max-w-lg mx-auto zh">从政府获取的一切——一个入口。</p>
+    
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-passport text-gold text-xl mt-1"></i><div><div class="font-bold en">Passport &amp; Visa</div><div class="font-bold zh">护照与签证</div><div class="text-xs opacity-60 mt-1 en">Apply, renew, check status</div><div class="text-xs opacity-60 mt-1 zh">申请、续期、查询状态</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-building-columns text-gold text-xl mt-1"></i><div><div class="font-bold en">Business Registration</div><div class="font-bold zh">企业注册</div><div class="text-xs opacity-60 mt-1 en">Register a company, file taxes</div><div class="text-xs opacity-60 mt-1 zh">注册公司、纳税申报</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-landmark text-gold text-xl mt-1"></i><div><div class="font-bold en">Land Registry</div><div class="font-bold zh">土地登记</div><div class="text-xs opacity-60 mt-1 en">Search land titles, file claims</div><div class="text-xs opacity-60 mt-1 zh">查询地契、提出申请</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-check-to-slot text-gold text-xl mt-1"></i><div><div class="font-bold en">Elections</div><div class="font-bold zh">选举</div><div class="text-xs opacity-60 mt-1 en">Register to vote — next: May 2027</div><div class="text-xs opacity-60 mt-1 zh">选民登记——下次：2027年5月</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-id-card text-gold text-xl mt-1"></i><div><div class="font-bold en">National ID</div><div class="font-bold zh">国民身份证</div><div class="text-xs opacity-60 mt-1 en">Apply or replace your ID card</div><div class="text-xs opacity-60 mt-1 zh">申请或补办身份证</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-car text-gold text-xl mt-1"></i><div><div class="font-bold en">Driving Licence</div><div class="font-bold zh">驾驶执照</div><div class="text-xs opacity-60 mt-1 en">Apply, renew, check points</div><div class="text-xs opacity-60 mt-1 zh">申请、续期、查扣分</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-heart-pulse text-gold text-xl mt-1"></i><div><div class="font-bold en">Health Services</div><div class="font-bold zh">医疗服务</div><div class="text-xs opacity-60 mt-1 en">Hospitals, vaccination records</div><div class="text-xs opacity-60 mt-1 zh">医院、疫苗接种记录</div></div></a>
+      <a href="#" class="bg-white/10 hover:bg-white/20 backdrop-blur rounded-xl p-5 flex items-start gap-3 transition"><i class="fa-solid fa-gavel text-gold text-xl mt-1"></i><div><div class="font-bold en">Court Records</div><div class="font-bold zh">法院记录</div><div class="text-xs opacity-60 mt-1 en">Search judgments and filings</div><div class="text-xs opacity-60 mt-1 zh">查询判决与立案</div></div></a>
+    </div>
+
+    <div class="bg-white/5 rounded-2xl p-6 text-center grid sm:grid-cols-3 gap-4 text-sm">
+      <div><span class="opacity-50 en">Next Election</span><span class="opacity-50 zh">下次大选</span><br><span class="font-bold en">May 2027</span><span class="font-bold zh">2027年5月</span></div>
+      <div><span class="opacity-50 en">Voter Registration</span><span class="opacity-50 zh">选民登记</span><br><span class="font-bold en">Deadline: 28 Feb 2027</span><span class="font-bold zh">截止：2027年2月28日</span></div>
+      <div><span class="opacity-50 en">National Status</span><span class="opacity-50 zh">国家状态</span><br><span class="text-green-400 font-bold en">● Normal</span><span class="text-green-400 font-bold zh">● 正常</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ HERITAGE ═══════════ -->
+<section class="py-20 bg-cream tapa-pattern">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid md:grid-cols-2 gap-16 items-center">
+      <div>
+        <h2 class="text-4xl font-bold mb-8 en">Our Heritage</h2>
+        <h2 class="text-4xl font-bold mb-8 zh">我们的遗产</h2>
+        <ul class="space-y-5 text-lg">
+          <li class="flex gap-4"><span class="text-gold text-2xl">🏺</span><span><strong class="en">Lapita Legacy</strong><strong class="zh">Lapita 遗产</strong><span class="en"> — 3,000 years of Pacific voyaging, revealed in the Black Obsidian engravings at Lake Tapu.</span><span class="zh"> — 三千年的太平洋航海史，发现于塔普湖黑曜石刻。</span></span></li>
+          <li class="flex gap-4"><span class="text-gold text-2xl">🕊️</span><span><strong class="en">Twelve Kava Kings</strong><strong class="zh">十二代卡瓦之王</strong><span class="en"> — From the exiled priest to the last bowl — a millennium of peace-making.</span><span class="zh"> — 从被放逐的祭司到最后一只碗——千年的和平缔造者。</span></span></li>
+          <li class="flex gap-4"><span class="text-gold text-2xl">📜</span><span><strong class="en">1992 Constitution</strong><strong class="zh">1992年宪法</strong><span class="en"> — Born from the ashes of civil war. 158,000 lives lost. Every article is a stone upon their graves.</span><span class="zh"> — 诞生于内战的灰烬。158,000条生命。每一条都是压在坟上的一块石头。</span></span></li>
+          <li class="flex gap-4"><span class="text-gold text-2xl">🤝</span><span><strong class="en">Two Peoples, One Nation</strong><strong class="zh">两个民族，一个国家</strong><span class="en"> — Indigenous navigators and Indian labourers — their grandchildren sit in Parliament together.</span><span class="zh"> — 原住民航海者与印度劳工——他们的孙辈共同坐在议会里。</span></span></li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-3xl p-10 shadow-xl">
+        <p id="heritage-quote" class="italic text-xl leading-relaxed text-gray-700">"This Constitution was born from the ashes of a war in which one hundred and fifty-eight thousand of our people perished. Every word is a stone laid upon their graves — not to weigh them down, but to build a house they can finally rest beneath."</p>
+        <p class="mt-6 text-sm text-gray-400 en">— Preamble, Constitution of the Republic of Mariven (1992)</p>
+        <p class="mt-6 text-sm text-gray-400 zh">— 《马里文共和国宪法》序言（1992年）</p>
+        <a href="#" class="inline-block mt-6 text-navy font-bold hover:underline text-sm en">Read the full Constitution →</a>
+        <a href="#" class="inline-block mt-6 text-navy font-bold hover:underline text-sm zh">阅读宪法全文 →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ NEWS ═══════════ -->
+<section id="news" class="py-20 bg-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-center mb-3 en">Latest from the Government</h2>
+    <h2 class="text-4xl font-bold text-center mb-3 zh">政府最新消息</h2>
+    <p class="text-center text-gray-500 mb-12 en">Official announcements, policy updates, and public notices.</p>
+    <p class="text-center text-gray-500 mb-12 zh">官方公告、政策更新与公共通知。</p>
+    <div class="grid md:grid-cols-3 gap-6">
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">12 July 2026 · Economy</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月12日 · 经济</div><h3 class="font-bold text-xl mb-3 en">PM Makari on Mid-Year Economic Outlook</h3><h3 class="font-bold text-xl mb-3 zh">马卡里总理发表年中经济展望</h3><p class="text-gray-500 text-sm en">Inflation steady at 2.4%. Tourism recovery exceeds expectations.</p><p class="text-gray-500 text-sm zh">通胀稳定在2.4%。旅游业复苏超出预期。</p></a>
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">12 July 2026 · Foreign Affairs</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月12日 · 外交</div><h3 class="font-bold text-xl mb-3 en">Mariven to Attend PIF Leaders' Summit</h3><h3 class="font-bold text-xl mb-3 zh">马里文将出席太平洋岛国论坛领导人峰会</h3><p class="text-gray-500 text-sm en">Foreign Minister Ana Lopes confirms. Climate finance and regional security on agenda.</p><p class="text-gray-500 text-sm zh">外交部长安娜·洛佩斯确认出席。气候融资与区域安全列入议程。</p></a>
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">11 July 2026 · Health</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月11日 · 卫生</div><h3 class="font-bold text-xl mb-3 en">Dengue Down 18% YoY in Q2</h3><h3 class="font-bold text-xl mb-3 zh">Q2登革热发病率同比下降18%</h3><p class="text-gray-500 text-sm en">Health Minister credits expanded Wolbachia programme.</p><p class="text-gray-500 text-sm zh">卫生部长归功于Wolbachia项目的扩展。</p></a>
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">11 July 2026 · Elections</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月11日 · 选举</div><h3 class="font-bold text-xl mb-3 en">Voter Registration Deadline: 28 Feb 2027</h3><h3 class="font-bold text-xl mb-3 zh">选民登记截止日：2027年2月28日</h3><p class="text-gray-500 text-sm en">Mobile registration units visiting outer islands from August.</p><p class="text-gray-500 text-sm zh">流动登记站8月起赴外岛。</p></a>
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">8 July 2026 · Infrastructure</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月8日 · 基础设施</div><h3 class="font-bold text-xl mb-3 en">Timo Island 4G Goes Live August 1</h3><h3 class="font-bold text-xl mb-3 zh">蒂莫岛4G将于8月1日开通</h3><p class="text-gray-500 text-sm en">Coverage to reach 94% of Timo's population.</p><p class="text-gray-500 text-sm zh">覆盖率达蒂莫岛人口94%。</p></a>
+      <a href="#" class="card-news border border-gray-100 rounded-2xl p-8 hover:shadow-xl transition block"><div class="text-gold text-sm font-bold mb-3 en">5 July 2026 · Trade</div><div class="text-gold text-sm font-bold mb-3 zh">2026年7月5日 · 贸易</div><h3 class="font-bold text-xl mb-3 en">Mariven-China FTA: Q1 Trade Data</h3><h3 class="font-bold text-xl mb-3 zh">中马自贸协定：首季贸易数据</h3><p class="text-gray-500 text-sm en">Chinese tourist arrivals up 40%. Kava exports expand.</p><p class="text-gray-500 text-sm zh">中国游客入境增40%。卡瓦出口市场扩展。</p></a>
+    </div>
+    <div class="text-center mt-10"><a href="#" class="inline-block bg-navy text-white px-8 py-3 rounded-xl font-bold hover:bg-navy/90 transition en">View All News</a><a href="#" class="inline-block bg-navy text-white px-8 py-3 rounded-xl font-bold hover:bg-navy/90 transition zh">查看全部新闻</a></div>
+  </div>
+</section>
+
+<!-- ═══════════ LAWS & DATA ═══════════ -->
+<section id="laws" class="py-20 bg-cream">
+  <div class="max-w-7xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-center mb-12 en">Laws, Data &amp; Transparency</h2>
+    <h2 class="text-4xl font-bold text-center mb-12 zh">法律、数据与透明</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">📕</div><h3 class="font-bold en">Constitution</h3><h3 class="font-bold zh">宪法</h3><p class="text-sm text-gray-500 mt-2 en">Full text · 96 articles · 1992 (amended 2013)</p><p class="text-sm text-gray-500 mt-2 zh">全文 · 96条 · 1992年（2013年修订）</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">📊</div><h3 class="font-bold en">Statistics Bureau</h3><h3 class="font-bold zh">统计局</h3><p class="text-sm text-gray-500 mt-2 en">CPI · GDP · Census · Trade · Monthly</p><p class="text-sm text-gray-500 mt-2 zh">CPI · GDP · 人口普查 · 贸易 · 月度发布</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">📓</div><h3 class="font-bold en">Hansard</h3><h3 class="font-bold zh">议会辩论记录</h3><p class="text-sm text-gray-500 mt-2 en">Parliament transcripts · every sitting day</p><p class="text-sm text-gray-500 mt-2 zh">议会辩论逐字记录 · 每个开会日</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">📋</div><h3 class="font-bold en">FOI Requests</h3><h3 class="font-bold zh">信息公开申请</h3><p class="text-sm text-gray-500 mt-2 en">Freedom of Information · Art. 24</p><p class="text-sm text-gray-500 mt-2 zh">信息自由法 · 宪法第24条</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">⚖️</div><h3 class="font-bold en">Supreme Court</h3><h3 class="font-bold zh">最高法院</h3><p class="text-sm text-gray-500 mt-2 en">Judgments · Case search · Calendar</p><p class="text-sm text-gray-500 mt-2 zh">判决书 · 案件查询 · 开庭日历</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">📙</div><h3 class="font-bold en">Gazette</h3><h3 class="font-bold zh">政府公报</h3><p class="text-sm text-gray-500 mt-2 en">Official notices · monthly</p><p class="text-sm text-gray-500 mt-2 zh">官方公告 · 月度发布</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">💼</div><h3 class="font-bold en">Tenders</h3><h3 class="font-bold zh">招标公告</h3><p class="text-sm text-gray-500 mt-2 en">Government procurement · open bids</p><p class="text-sm text-gray-500 mt-2 zh">政府采购 · 公开竞标</p></a>
+      <a href="#" class="bg-white rounded-2xl p-6 hover:shadow-lg transition text-center"><div class="text-4xl mb-4">🗺️</div><h3 class="font-bold en">Seven Provinces</h3><h3 class="font-bold zh">七省</h3><p class="text-sm text-gray-500 mt-2 en">Katora · Western · Highlands · East · Timo · Pela · Ruwa</p><p class="text-sm text-gray-500 mt-2 zh">卡托拉 · 西部 · 高原 · 东岸 · 蒂莫 · 佩拉 · 鲁瓦</p></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="bg-deep text-white py-16">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12 text-sm">
+      <div><h4 class="font-bold text-gold mb-4 en">Government</h4><h4 class="font-bold text-gold mb-4 zh">政府</h4><ul class="space-y-2 opacity-80"><li><a href="#" class="hover:text-gold transition en">PM &amp; Cabinet</a><a href="#" class="hover:text-gold transition zh">总理与内阁</a></li><li><a href="#" class="hover:text-gold transition en">Parliament</a><a href="#" class="hover:text-gold transition zh">议会</a></li><li><a href="#" class="hover:text-gold transition en">Supreme Court</a><a href="#" class="hover:text-gold transition zh">最高法院</a></li><li><a href="#" class="hover:text-gold transition en">President's Office</a><a href="#" class="hover:text-gold transition zh">总统办公室</a></li></ul></div>
+      <div><h4 class="font-bold text-gold mb-4 en">Agencies</h4><h4 class="font-bold text-gold mb-4 zh">机构</h4><ul class="space-y-2 opacity-80"><li><a href="#" class="hover:text-gold transition"><span class="en">Reserve Bank</span><span class="zh">央行</span></a></li><li><a href="#" class="hover:text-gold transition"><span class="en">Electoral Commission</span><span class="zh">选举委</span></a></li><li><a href="#" class="hover:text-gold transition"><span class="en">ICAC</span><span class="zh">反腐委</span></a></li><li><a href="#" class="hover:text-gold transition"><span class="en">Statistics Bureau</span><span class="zh">统计局</span></a></li><li><a href="#" class="hover:text-gold transition"><span class="en">Meteorological Service</span><span class="zh">气象局</span></a></li></ul></div>
+      <div><h4 class="font-bold text-gold mb-4 en">Quick Links</h4><h4 class="font-bold text-gold mb-4 zh">快速链接</h4><ul class="space-y-2 opacity-80"><li><a href="#" class="hover:text-gold transition en">Find a Service</a><a href="#" class="hover:text-gold transition zh">查找服务</a></li><li><a href="#" class="hover:text-gold transition en">Download Forms</a><a href="#" class="hover:text-gold transition zh">下载表格</a></li><li><a href="#" class="hover:text-gold transition en">Contact a Ministry</a><a href="#" class="hover:text-gold transition zh">联系部委</a></li><li><a href="#" class="hover:text-gold transition en">Job Vacancies</a><a href="#" class="hover:text-gold transition zh">职位空缺</a></li></ul></div>
+      <div><h4 class="font-bold text-gold mb-4 en">Contact</h4><h4 class="font-bold text-gold mb-4 zh">联系</h4><ul class="space-y-2 opacity-80 text-sm"><li><span class="en">1 Victoria Avenue, Katora City</span><span class="zh">卡托拉市维多利亚大道1号</span></li><li><span class="en">Republic of Mariven</span><span class="zh">马里文共和国</span></li><li>+688 5XX XXXX</li><li>info@gov.mv</li></ul><div class="flex gap-4 mt-4 text-2xl"><i class="fa-solid fa-water"></i><i class="fa-solid fa-leaf"></i><i class="fa-solid fa-ship"></i></div></div>
+    </div>
+    <div class="border-t border-white/10 pt-8 text-center text-xs opacity-40">
+      <p class="en">© 2026 Government of the Republic of Mariven · Published under Article 24 of the Constitution and the Freedom of Information Act 2012.</p>
+      <p class="mt-2 zh">© 2026 马里文共和国政府 · 依据宪法第24条及2012年《信息自由法》发布。</p>
+      <p class="mt-2 en">Design motifs drawn from the Marivenese Tapa-making tradition.</p>
+      <p class="mt-2 zh">设计元素来源于马里文树皮布制作传统。</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════ SEARCH MODAL ═══════════ -->
+<div id="search-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-32">
+  <div id="search-modal-inner" class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl transform scale-90 opacity-0 transition-all duration-300">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="font-bold text-xl en">Search gov.mv</h3>
+      <h3 class="font-bold text-xl zh">搜索 gov.mv</h3>
+      <button onclick="closeSearch()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+    </div>
+    <input type="text" placeholder="Passport · Tax rates · Constitution…" class="w-full p-4 border-2 border-gray-200 rounded-xl text-lg focus:border-navy outline-none">
+    <div class="mt-4 text-xs text-gray-400 en">Popular: Voter Registration · Business License · MFSC Exam Results · Land Title Search</div>
+    <div class="mt-4 text-xs text-gray-400 zh">热门：选民登记 · 营业执照 · MFSC高考成绩 · 地契查询</div>
+  </div>
+</div>
+
+<!-- ═══════════ BACK TO TOP ═══════════ -->
+<button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" class="fixed bottom-6 right-6 w-12 h-12 bg-gold text-navy rounded-full shadow-xl flex items-center justify-center text-xl font-extrabold opacity-0 translate-y-4 pointer-events-none transition-all duration-300 z-40 hover:bg-amber-400">↑</button>
+
+<script>
+// ── LANGUAGE SWITCH (JS inline-style — bypasses Tailwind) ──
+function switchLang(lang){
+  localStorage.setItem('govmv-lang', lang);
+  var hide = (lang === 'en') ? 'zh' : 'en';
+  var show = lang;
+  [].forEach.call(document.querySelectorAll('.'+hide), function(el){ el.style.display = 'none'; });
+  [].forEach.call(document.querySelectorAll('.'+show), function(el){
+    el.style.display = '';
+  });
+  document.querySelectorAll('.lang-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelector('.lang-btn[data-lang="'+lang+'"]').classList.add('active');
+}
+(function(){
+  var saved = localStorage.getItem('govmv-lang') || 'en';
+  switchLang(saved);
+})();
+
+// ── SCROLL FADE-IN ──
+(function(){
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if(e.isIntersecting){ e.target.style.opacity='1'; e.target.style.transform='translateY(0)'; }});
+  }, {threshold: 0.12});
+  document.querySelectorAll('section, footer, .card-news, .island-card').forEach(el => {
+    el.style.opacity='0'; el.style.transform='translateY(30px)'; el.style.transition='opacity 0.6s ease-out, transform 0.6s ease-out';
+    observer.observe(el);
+  });
+  const h = document.querySelector('header'); if(h){ h.style.opacity='1'; h.style.transform='none'; }
+  const s = document.querySelector('section.bg-white.border-b'); if(s){ s.style.opacity='1'; s.style.transform='none'; }
+})();
+
+// ── NUMBER COUNTING ──
+(function(){
+  const co = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if(!e.isIntersecting || e.target.dataset.counted) return;
+      e.target.dataset.counted='1';
+      const target = parseInt(e.target.getAttribute('data-target'));
+      if(!target) return;
+      const duration=1500, start=performance.now();
+      function tick(now){
+        const p=Math.min((now-start)/duration,1);
+        const v=Math.floor((1-Math.pow(1-p,3))*target);
+        e.target.textContent = target>=1000 ? v.toLocaleString() : v;
+        if(p<1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }, {threshold:0.5});
+  document.querySelectorAll('[data-target]').forEach(el => co.observe(el));
+})();
+
+// ── SMOOTH SCROLL ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', function(e){
+    const id = this.getAttribute('href'); if(id==='#') return;
+    const target = document.querySelector(id);
+    if(target){ e.preventDefault(); target.scrollIntoView({behavior:'smooth',block:'start'}); }
+  });
+});
+
+// ── NAV SHADOW ──
+(function(){
+  const nav = document.querySelector('nav'); let t=false;
+  window.addEventListener('scroll',()=>{ if(!t){ requestAnimationFrame(()=>{ nav.classList.toggle('shadow-xl',window.scrollY>50); t=false; }); t=true; }});
+})();
+
+// ── BACK TO TOP ──
+(function(){
+  const btn = document.getElementById('back-to-top');
+  window.addEventListener('scroll',()=>{
+    if(window.scrollY>800){ btn.style.opacity='1'; btn.style.transform='translateY(0)'; btn.style.pointerEvents='auto'; }
+    else { btn.style.opacity='0'; btn.style.transform='translateY(16px)'; btn.style.pointerEvents='none'; }
+  });
+})();
+
+// ── SEARCH MODAL ──
+window.openSearch = function(){
+  const m=document.getElementById('search-modal'), i=document.getElementById('search-modal-inner');
+  m.classList.remove('hidden'); requestAnimationFrame(()=>{ i.style.opacity='1'; i.style.transform='scale(1)'; });
+};
+window.closeSearch = function(){
+  const m=document.getElementById('search-modal'), i=document.getElementById('search-modal-inner');
+  i.style.opacity='0'; i.style.transform='scale(0.9)'; setTimeout(()=>m.classList.add('hidden'),250);
+};
+document.getElementById('search-modal').addEventListener('click',function(e){ if(e.target===this) closeSearch(); });
+
+// ── CONSTITUTION TYPING ──
+(function(){
+  const q=document.getElementById('heritage-quote'); if(!q) return;
+  const text=q.textContent.trim(); q.textContent=''; q.style.opacity='0'; let i=0;
+  const ob=new IntersectionObserver((entries)=>{ entries.forEach(e=>{ if(!e.isIntersecting||q.dataset.typed) return; q.dataset.typed='1'; q.style.opacity='1';
+    const iv=setInterval(()=>{ if(i<text.length){ q.textContent+=text[i]; i++; } else clearInterval(iv); },18);
+  }); },{threshold:0.3}); ob.observe(q);
+})();
+
+// ── ISLAND CARD TAP FLIP ──
+document.querySelectorAll('.island-card').forEach(card => {
+  card.addEventListener('click',function(){ if(window.innerWidth>768) return; this.classList.toggle('flipped'); });
+});
+</script>
+
+</body>
+</html>

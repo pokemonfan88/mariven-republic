@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "description": "Mariven simulation engine state snapshot — loaded and mutated by engine.py on each tick",
+    "random_seed": 42,
+    "ticks_run": 14
+  },
+  "date": "2026-07-26",
+  "weather": {
+    "condition": "阴",
+    "temp_high": 28,
+    "temp_low": 19,
+    "humidity": 74,
+    "rainfall_mm": 0.0,
+    "wind_kmh": 8,
+    "cyclone_risk": "none",
+    "notes": "干季典型天气——微风、舒适。"
+  },
+  "economy": {
+    "gdp_growth_pct": 3.1,
+    "inflation_pct": 2.3841,
+    "unemployment_pct": 8.2145,
+    "interest_rate_pct": 2.5,
+    "exchange_rate_mvl_per_usd": 2.1786,
+    "fuel_95_price_mvl": 2.887,
+    "fuel_diesel_price_mvl": 2.345
+  },
+  "government": {
+    "pm": "托马斯·马卡里",
+    "pm_party": "MUP",
+    "coalition": [
+      "MUP",
+      "PAP"
+    ],
+    "seats": {
+      "MUP": 32,
+      "DPA": 24,
+      "PAP": 12,
+      "IRP": 6,
+      "GFP": 3,
+      "IND": 1
+    },
+    "next_election": "2027-05",
+    "stability": "稳定"
+  },
+  "population": 1200000,
+  "deaths_today": {
+    "traffic": 1,
+    "drowning": 0,
+    "suicide": 0,
+    "murder": 0,
+    "workplace": 0,
+    "lightning": 0,
+    "other": 0,
+    "total": 1
+  },
+  "events_today": [
+    {
+      "type": "accident",
+      "severity": "fatal",
+      "deaths": 1,
+      "text": "交通事故——1人死亡",
+      "_date": "2026-07-26"
+    }
+  ]
+}
