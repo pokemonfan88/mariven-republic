@@ -1,12 +1,13 @@
 import random
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
-from exchange_model import FxDataset, exchange_step
+from exchange_model import FxDataError, FxDataset, exchange_step
 
 
 DATA = Path(__file__).resolve().parents[1] / "data"
@@ -19,6 +20,22 @@ class FixedShock:
     def gauss(self, mean, standard_deviation):
         del mean, standard_deviation
         return self.value
+
+
+def write_fx_dataset(directory, overrides=None):
+    overrides = overrides or {}
+    sources = {
+        "aud_usd.csv": "EXUSAL",
+        "nzd_usd.csv": "EXUSNZ",
+        "usd_cny.csv": "EXCHUS",
+        "eur_usd.csv": "EXUSEU",
+    }
+    for filename, column in sources.items():
+        value = overrides.get(filename, "1.0")
+        (directory / filename).write_text(
+            f"observation_date,{column}\n2026-06-01,{value}\n",
+            encoding="utf-8",
+        )
 
 
 class ExchangeTests(unittest.TestCase):
@@ -87,18 +104,22 @@ class ExchangeTests(unittest.TestCase):
                     )
 
     def test_non_finite_target_fails(self):
-        dataset = FxDataset(
-            self.dataset._series,
-            {**self.dataset.base_rates, "AUD": float("nan")},
-            self.dataset.calibration_month,
-        )
-        with self.assertRaisesRegex(
-            ValueError, "exchange-rate target must be a finite real number"
-        ):
-            exchange_step(
-                date(2026, 7, 14), {"mvl_per_usd": 2.18},
-                dataset, FixedShock(0.0),
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            write_fx_dataset(data_dir)
+            source_dataset = FxDataset.from_directory(data_dir)
+            dataset = FxDataset(
+                source_dataset._series,
+                {currency: 1e-308 for currency in source_dataset.base_rates},
+                source_dataset.calibration_month,
             )
+            with self.assertRaisesRegex(
+                ValueError, "exchange-rate target must be a finite real number"
+            ):
+                exchange_step(
+                    date(2026, 7, 14), {"mvl_per_usd": 2.18},
+                    dataset, FixedShock(0.0),
+                )
 
     def test_non_finite_derived_rate_fails(self):
         with self.assertRaisesRegex(
@@ -108,6 +129,42 @@ class ExchangeTests(unittest.TestCase):
                 date(2026, 7, 14), {"mvl_per_usd": sys.float_info.max},
                 self.dataset, FixedShock(sys.float_info.max),
             )
+
+    def test_cny_reciprocal_overflow_fails_during_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            write_fx_dataset(data_dir, {"usd_cny.csv": "5e-324"})
+            with self.assertRaisesRegex(
+                FxDataError, "canonical CNY rate must be finite"
+            ):
+                FxDataset.from_directory(data_dir)
+
+    def test_invalid_basket_log_input_has_labeled_error(self):
+        dataset = FxDataset(
+            self.dataset._series,
+            {**self.dataset.base_rates, "AUD": 0.0},
+            self.dataset.calibration_month,
+        )
+        with self.assertRaisesRegex(
+            ValueError, "AUD basket base quote must be a finite positive real number"
+        ):
+            exchange_step(
+                date(2026, 7, 14), {"mvl_per_usd": 2.18},
+                dataset, FixedShock(0.0),
+            )
+
+    def test_public_cross_rate_overflow_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            write_fx_dataset(data_dir, {"aud_usd.csv": "1e308"})
+            dataset = FxDataset.from_directory(data_dir)
+            with self.assertRaisesRegex(
+                ValueError, "mvl_per_aud must be a finite real number"
+            ):
+                exchange_step(
+                    date(2026, 7, 1), {"mvl_per_usd": 2.18},
+                    dataset, FixedShock(0.0),
+                )
 
 
 if __name__ == "__main__":

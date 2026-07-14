@@ -60,7 +60,9 @@ class FxDataset:
     def from_directory(cls, data_dir: Path) -> FxDataset:
         """Load all exchange-rate sources and calibrate their latest common month."""
         series = {
-            currency: _load_series(data_dir / filename, column, invert)
+            currency: _load_series(
+                data_dir / filename, currency, column, invert
+            )
             for currency, (filename, column, invert) in _SOURCE_FILES.items()
         }
 
@@ -102,14 +104,14 @@ def exchange_step(
 ) -> tuple[dict, dict, list[dict]]:
     """Return public exchange rates, explicit next state, and generated events."""
     rates, source_months = dataset.rates_for(d)
-    log_move = sum(
-        BASKET_WEIGHTS[currency]
-        * math.log(rates[currency] / dataset.base_rates[currency])
-        for currency in BASKET_WEIGHTS
-    )
-    target = _finite_real(
-        BASE_MVL_USD * math.exp(log_move), "exchange-rate target"
-    )
+    log_move = _basket_log_move(rates, dataset.base_rates)
+    try:
+        raw_target = BASE_MVL_USD * math.exp(log_move)
+    except (ValueError, OverflowError) as exc:
+        raise ValueError(
+            "exchange-rate target must be a finite real number"
+        ) from exc
+    target = _finite_real(raw_target, "exchange-rate target")
     previous = _finite_real(
         previous_state.get("mvl_per_usd", BASE_MVL_USD), "mvl_per_usd"
     )
@@ -121,15 +123,15 @@ def exchange_step(
     next_rate = min(2.80, max(1.80, next_rate))
 
     public = {
-        "mvl_per_usd": next_rate,
-        "mvl_per_aud": next_rate * rates["AUD"],
-        "mvl_per_nzd": next_rate * rates["NZD"],
-        "mvl_per_cny": next_rate * rates["CNY"],
-        "mvl_per_eur": next_rate * rates["EUR"],
-        "usd_per_aud": rates["AUD"],
-        "usd_per_nzd": rates["NZD"],
-        "usd_per_cny": rates["CNY"],
-        "usd_per_eur": rates["EUR"],
+        "mvl_per_usd": _finite_real(next_rate, "mvl_per_usd"),
+        "mvl_per_aud": _finite_real(next_rate * rates["AUD"], "mvl_per_aud"),
+        "mvl_per_nzd": _finite_real(next_rate * rates["NZD"], "mvl_per_nzd"),
+        "mvl_per_cny": _finite_real(next_rate * rates["CNY"], "mvl_per_cny"),
+        "mvl_per_eur": _finite_real(next_rate * rates["EUR"], "mvl_per_eur"),
+        "usd_per_aud": _finite_real(rates["AUD"], "usd_per_aud"),
+        "usd_per_nzd": _finite_real(rates["NZD"], "usd_per_nzd"),
+        "usd_per_cny": _finite_real(rates["CNY"], "usd_per_cny"),
+        "usd_per_eur": _finite_real(rates["EUR"], "usd_per_eur"),
         "source_months": source_months,
         "staleness_days": max(
             _staleness_days(d, source_month) for source_month in source_months.values()
@@ -139,7 +141,12 @@ def exchange_step(
     return public, next_state, []
 
 
-def _load_series(path: Path, column: str, invert: bool) -> _FxSeries:
+def _load_series(
+    path: Path,
+    currency: str,
+    column: str,
+    invert: bool,
+) -> _FxSeries:
     observations: dict[int, tuple[str, float]] = {}
     try:
         with path.open("r", encoding="utf-8", newline="") as source:
@@ -166,6 +173,11 @@ def _load_series(path: Path, column: str, invert: bool) -> _FxSeries:
                         f"invalid exchange-rate observation at {path}:{line_number}"
                     )
                 canonical_rate = 1.0 / source_rate if invert else source_rate
+                if not math.isfinite(canonical_rate):
+                    raise FxDataError(
+                        f"canonical {currency} rate must be finite at "
+                        f"{path}:{line_number}"
+                    )
                 key = _month_key_from_text(month)
                 existing = observations.get(key)
                 if existing is not None and existing != (month, canonical_rate):
@@ -235,3 +247,48 @@ def _finite_real(value, label: str) -> float:
     if not math.isfinite(converted):
         raise ValueError(message)
     return converted
+
+
+def _positive_finite_real(value, label: str) -> float:
+    message = f"{label} must be a finite positive real number"
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(message)
+    try:
+        converted = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(message) from exc
+    if not math.isfinite(converted) or converted <= 0.0:
+        raise ValueError(message)
+    return converted
+
+
+def _basket_log_move(
+    rates: dict[str, float],
+    base_rates: dict[str, float],
+) -> float:
+    contributions = []
+    for currency, weight in BASKET_WEIGHTS.items():
+        quote = _positive_finite_real(
+            rates[currency], f"{currency} basket quote"
+        )
+        base_quote = _positive_finite_real(
+            base_rates[currency], f"{currency} basket base quote"
+        )
+        try:
+            ratio = quote / base_quote
+        except (ArithmeticError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{currency} basket ratio must be a finite positive real number"
+            ) from exc
+        ratio = _positive_finite_real(ratio, f"{currency} basket ratio")
+        try:
+            log_ratio = math.log(ratio)
+        except (ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"{currency} basket log ratio must be a finite real number"
+            ) from exc
+        log_ratio = _finite_real(log_ratio, f"{currency} basket log ratio")
+        contributions.append(
+            _finite_real(weight * log_ratio, f"{currency} basket contribution")
+        )
+    return _finite_real(math.fsum(contributions), "basket log move")
