@@ -22,7 +22,7 @@ class CommodityTests(unittest.TestCase):
         self.assertEqual(public["source_month"], "2024-12")
         self.assertAlmostEqual(public["brent_usd_barrel"], 73.833, places=3)
         self.assertTrue(public["is_stale"])
-        self.assertGreater(public["staleness_days"], 365)
+        self.assertEqual(public["staleness_days"], 560)
         self.assertEqual(state["source_month"], "2024-12")
         self.assertEqual(events, [])
 
@@ -36,6 +36,60 @@ class CommodityTests(unittest.TestCase):
             path.write_text("date,gold_usd_oz\n2024-12,2648.01\n", encoding="utf-8")
             with self.assertRaisesRegex(DataSourceError, "sugar_usd_kg"):
                 CommoditySeries.from_csv(path)
+
+    def test_missing_file_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "missing.csv"
+            with self.assertRaisesRegex(
+                DataSourceError, "cannot read commodity data"
+            ):
+                CommoditySeries.from_csv(path)
+
+    def test_conflicting_duplicate_month_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "duplicate.csv"
+            path.write_text(
+                "date,sugar_usd_kg,gold_usd_oz,brent_usd_bbl\n"
+                "2024-12,0.4364,2648.01,73.833\n"
+                "2024-12,0.4364,2648.01,74.000\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                DataSourceError, "conflicting observations for month 2024-12"
+            ):
+                CommoditySeries.from_csv(path)
+
+    def test_invalid_month_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "invalid-month.csv"
+            path.write_text(
+                "date,sugar_usd_kg,gold_usd_oz,brent_usd_bbl\n"
+                "2024-13,0.4364,2648.01,73.833\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                DataSourceError, "invalid commodity month '2024-13'"
+            ):
+                CommoditySeries.from_csv(path)
+
+    def test_empty_dataset_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "empty.csv"
+            path.write_text(
+                "date,sugar_usd_kg,gold_usd_oz,brent_usd_bbl\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                DataSourceError, "contains no observations"
+            ):
+                CommoditySeries.from_csv(path)
+
+    def test_lookup_before_first_observation_fails(self):
+        with self.assertRaisesRegex(
+            DataSourceError,
+            "no commodity observation exists on or before 1959-12-31",
+        ):
+            self.series.lookup(date(1959, 12, 31))
 
     def test_non_finite_prices_fail(self):
         cases = (

@@ -19,15 +19,15 @@ from state import (
 V1 = {
     "_meta": {"random_seed": 42, "ticks_run": 30},
     "date": "2026-08-11",
-    "weather": {"condition": "澶氫簯", "temp_high": 27, "temp_low": 18,
+    "weather": {"condition": "多云", "temp_high": 27, "temp_low": 18,
                 "humidity": 67, "rainfall_mm": 0.0, "wind_kmh": 14,
-                "cyclone_risk": "none", "notes": "鍏煎澶╂皵"},
+                "cyclone_risk": "none", "notes": "兼容天气"},
     "economy": {"inflation_pct": 2.4, "unemployment_pct": 5.8,
                 "interest_rate_pct": 2.5,
                 "exchange_rate_mvl_per_usd": 2.18,
                 "fuel_95_price_mvl": 2.85,
                 "fuel_diesel_price_mvl": 2.03},
-    "government": {"pm": "鎵橀┈鏂烽┈鍗￠噷"},
+    "government": {"pm": "托马斯·马卡里"},
     "population": 1_200_000,
     "deaths_today": {"total": 0},
     "events_today": [],
@@ -41,7 +41,7 @@ class StateTests(unittest.TestCase):
         self.assertEqual(V1, original)
         self.assertEqual(migrated["schema_version"], SCHEMA_VERSION)
         self.assertEqual(migrated["base_seed"], 42)
-        self.assertEqual(migrated["weather"]["condition"], "澶氫簯")
+        self.assertEqual(migrated["weather"]["condition"], "多云")
         self.assertEqual(set(migrated["model_state"]),
                          {"weather", "exchange", "commodities", "inflation"})
 
@@ -123,6 +123,16 @@ class StateTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                         StateValidationError, rf"^state\.economy\.{field}"):
                     validate_state(broken)
+
+    def test_validate_rejects_oversized_integer_with_field_path(self):
+        broken = migrate_state(V1)
+        broken["economy"]["inflation_pct"] = 10 ** 10_000
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.economy\.inflation_pct: expected a finite number$",
+        ):
+            validate_state(broken)
 
     def test_validate_rejects_non_finite_nested_model_value(self):
         broken = migrate_state(V1)

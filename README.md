@@ -112,17 +112,14 @@ cd sim-engine
 python engine/engine.py --days 1
 python engine/engine.py --days 30
 python engine/engine.py --days 365 --dry-run
-python -m unittest discover -s tests -p "test*.py" -v
 ```
 
 `--days` 指定连续执行的每日 Tick 数。`--dry-run` 会把每个 Tick 的逐日摘要打印到标准输出，但绝不写入 `data/state.json`、JSON 历史归档或 SQLite 事件库；适合年度校准和验证。
 
-### 2. 运行独立模型演示
+### 2. 运行测试
 
 ```bash
-python engine/weather_model.py
-python engine/exchange_model.py
-python engine/commodities_model.py
+python -m unittest discover -s tests -p "test*.py" -v
 ```
 
 ### 3. 查看国家运营中心

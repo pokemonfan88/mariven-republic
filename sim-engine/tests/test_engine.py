@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
 from engine import EngineResources, tick
+from weather_model import weather_step as real_weather_step
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,6 +86,39 @@ class EngineTests(unittest.TestCase):
         encoded = json.dumps(result, ensure_ascii=False, allow_nan=False)
 
         self.assertIsInstance(encoded, str)
+
+    def test_tick_weather_alert_texts_are_unique(self):
+        cases = (
+            ("阵雨", "午后阵雨——预计持续1-2小时"),
+            ("暴雨", "暴雨预警——卡托拉市低洼区注意积水"),
+        )
+        rain_alerts = {text for _, text in cases}
+
+        for condition, expected_alert in cases:
+            with self.subTest(condition=condition):
+                def forced_weather(*args, **kwargs):
+                    public, state, events = real_weather_step(*args, **kwargs)
+                    public["condition"] = condition
+                    public["katora"]["condition"] = condition
+                    events = [
+                        event for event in events
+                        if event.get("text") not in rain_alerts
+                    ]
+                    events.append({
+                        "type": "weather",
+                        "severity": (
+                            "warning" if condition == "暴雨" else "info"
+                        ),
+                        "text": expected_alert,
+                    })
+                    return public, state, events
+
+                with patch("engine.weather_step", side_effect=forced_weather):
+                    result = tick(self.v1, resources=self.resources)
+
+                texts = [event["text"] for event in result["events_today"]]
+                self.assertEqual(texts.count(expected_alert), 1, texts)
+                self.assertEqual(len(texts), len(set(texts)), texts)
 
 
 if __name__ == "__main__":

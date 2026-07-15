@@ -34,7 +34,7 @@ def events_step(
     rng_factory: Callable[[str], random.Random],
 ) -> tuple[dict, list[dict]]:
     """Return deterministic daily deaths and legacy general events."""
-    del state
+    del state, weather
     deaths = {
         category: _poisson(mean, rng_factory(f"deaths:{category}"))
         for category, mean in ANNUAL_DEATH_RATES.items()
@@ -42,20 +42,6 @@ def events_step(
     deaths["total"] = sum(deaths.values())
 
     events: list[dict] = []
-    condition = weather.get("condition")
-    if condition == "暴雨":
-        events.append({
-            "type": "weather",
-            "severity": "warning",
-            "text": "暴雨预警——卡托拉市低洼区注意积水",
-        })
-    if condition == "阵雨":
-        events.append({
-            "type": "weather",
-            "severity": "info",
-            "text": "午后阵雨——预计持续1-2小时",
-        })
-
     for category, event_type, text in (
         ("traffic", "accident", "交通事故"),
         ("drowning", "accident", "溺水"),

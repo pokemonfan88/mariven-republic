@@ -1,5 +1,6 @@
 import copy
 import json
+import math
 import random
 import sys
 import unittest
@@ -43,6 +44,48 @@ class InflationTests(unittest.TestCase):
         self.assertEqual(public1["index"], public2["index"])
         self.assertEqual(public1["yoy_pct"], public2["yoy_pct"])
 
+    def test_migrated_components_hold_until_first_release(self):
+        state = copy.deepcopy(self.state)
+        official_components = []
+        release_dates = []
+        pump_prices = []
+        upstream_inputs = (
+            (2.0, 26.0, 0.20, 60.0, 2.10),
+            (20.0, 31.0, 0.30, 90.0, 2.35),
+            (0.0, 22.0, 0.10, 120.0, 2.60),
+        )
+
+        for offset, inputs in enumerate(upstream_inputs):
+            rainfall, temperature, sugar, brent, exchange_rate = inputs
+            d = date(2026, 8, 12 + offset)
+            public, state, _ = inflation_step(
+                d,
+                state,
+                {"katora": {
+                    "rainfall_mm": rainfall,
+                    "temp_high": temperature,
+                }},
+                {"sugar_usd_lb": sugar, "brent_usd_barrel": brent},
+                {"mvl_per_usd": exchange_rate, "basket_index": 1.0},
+                self.profile,
+                random.Random(d.isoformat()),
+            )
+            official_components.append(public["components"])
+            release_dates.append(public["release_date"])
+            pump_prices.append(public["fuel_95_price_mvl"])
+            self.assertIn("published_components", state)
+            self.assertEqual(
+                state["published_components"], public["components"]
+            )
+
+        self.assertEqual(
+            official_components,
+            [official_components[0]] * len(official_components),
+        )
+        self.assertEqual(release_dates, [None, None, None])
+        self.assertEqual(state["last_release_date"], None)
+        self.assertNotEqual(pump_prices[0], pump_prices[-1])
+
     def test_release_day_preserves_previous_month_for_mom(self):
         _, state1, _ = self.step(date(2026, 8, 14), self.state)
         public, state2, events = self.step(date(2026, 8, 15), state1)
@@ -52,9 +95,51 @@ class InflationTests(unittest.TestCase):
         self.assertEqual(state2["last_release_date"], "2026-08-15")
         self.assertEqual(events[0]["type"], "economy")
 
+    def test_release_uses_exact_index_mom_and_yoy_formulas(self):
+        state = copy.deepcopy(self.state)
+        state["published_index"] = 110.0
+        state["monthly_history"] = [{
+            "date": "2025-07-31",
+            "index": 100.0,
+            "source": "synthetic_history",
+        }]
+        component_pressures = {
+            "food": 0.5,
+            "fuel": 1.0,
+            "housing": 1.5,
+            "transport": 2.0,
+            "other": 2.5,
+        }
+        state["daily_observations"] = [{
+            "date": "2026-07-31",
+            "component_pressures": component_pressures,
+            "component_details": {},
+        }]
+
+        public, next_state, _ = self.step(date(2026, 8, 15), state)
+
+        weighted_change = round(math.fsum((
+            0.35 * 0.5,
+            0.18 * 1.0,
+            0.15 * 1.5,
+            0.12 * 2.0,
+            0.20 * 2.5,
+        )), 4)
+        expected_index = round(110.0 * (1.0 + weighted_change / 100), 6)
+        expected_mom = round((expected_index / 110.0 - 1.0) * 100, 4)
+        expected_yoy = round((expected_index / 100.0 - 1.0) * 100, 4)
+        self.assertEqual(weighted_change, 1.32)
+        self.assertEqual(public["index"], expected_index)
+        self.assertEqual(public["mom_pct"], expected_mom)
+        self.assertEqual(public["yoy_pct"], expected_yoy)
+        release = next_state["monthly_history"][-1]
+        self.assertEqual(release["index"], expected_index)
+        self.assertEqual(release["mom_pct"], expected_mom)
+        self.assertEqual(release["yoy_pct"], expected_yoy)
+
     def test_release_holds_official_components_and_uses_target_month_details(self):
-        july30, july30_state, _ = self.step(date(2026, 7, 30), self.state)
-        july31, july_state, _ = inflation_step(
+        _, july30_state, _ = self.step(date(2026, 7, 30), self.state)
+        _, july_state, _ = inflation_step(
             date(2026, 7, 31), july30_state,
             {"katora": {"rainfall_mm": 0.0, "temp_high": 30.0}},
             {"sugar_usd_lb": 0.30, "brent_usd_barrel": 90.0},
@@ -85,8 +170,10 @@ class InflationTests(unittest.TestCase):
         self.assertEqual(
             released["components"]["food"]["weather_pressure"],
             round((
-                july30["components"]["food"]["weather_pressure"]
-                + july31["components"]["food"]["weather_pressure"]
+                july30_state["daily_observations"][-1]
+                ["component_details"]["food"]["weather_pressure"]
+                + july_state["daily_observations"][-1]
+                ["component_details"]["food"]["weather_pressure"]
             ) / 2.0, 4),
         )
         self.assertEqual(released_state["published_components"],
@@ -132,27 +219,35 @@ class InflationTests(unittest.TestCase):
                            low["fuel_95_price_mvl"])
 
     def test_transport_uses_one_day_lagged_fuel_pressure(self):
-        low, low_state, _ = inflation_step(
+        _, low_state, _ = inflation_step(
             date(2026, 8, 1), copy.deepcopy(self.state), self.weather,
             {**self.commodities, "brent_usd_barrel": 60.0}, self.exchange,
             self.profile, random.Random(1),
         )
-        high, high_state, _ = inflation_step(
+        _, high_state, _ = inflation_step(
             date(2026, 8, 1), copy.deepcopy(self.state), self.weather,
             {**self.commodities, "brent_usd_barrel": 100.0}, self.exchange,
             self.profile, random.Random(1),
         )
-        self.assertNotEqual(low["components"]["fuel"]["rate_pct"],
-                            high["components"]["fuel"]["rate_pct"])
-        self.assertEqual(low["components"]["transport"]["rate_pct"],
-                         high["components"]["transport"]["rate_pct"])
+        low_details = low_state["daily_observations"][-1]["component_details"]
+        high_details = high_state["daily_observations"][-1]["component_details"]
+        self.assertNotEqual(low_details["fuel"]["rate_pct"],
+                            high_details["fuel"]["rate_pct"])
+        self.assertEqual(low_details["transport"]["rate_pct"],
+                         high_details["transport"]["rate_pct"])
 
-        after_low, _, _ = self.step(date(2026, 8, 2), low_state)
-        after_high, _, _ = self.step(date(2026, 8, 2), high_state)
-        self.assertEqual(after_low["components"]["fuel"]["rate_pct"],
-                         after_high["components"]["fuel"]["rate_pct"])
-        self.assertNotEqual(after_low["components"]["transport"]["rate_pct"],
-                            after_high["components"]["transport"]["rate_pct"])
+        _, after_low_state, _ = self.step(date(2026, 8, 2), low_state)
+        _, after_high_state, _ = self.step(date(2026, 8, 2), high_state)
+        after_low = after_low_state["daily_observations"][-1][
+            "component_details"
+        ]
+        after_high = after_high_state["daily_observations"][-1][
+            "component_details"
+        ]
+        self.assertEqual(after_low["fuel"]["rate_pct"],
+                         after_high["fuel"]["rate_pct"])
+        self.assertNotEqual(after_low["transport"]["rate_pct"],
+                            after_high["transport"]["rate_pct"])
 
     def test_observation_for_same_date_is_replaced(self):
         _, state1, _ = self.step(date(2026, 8, 1), self.state)

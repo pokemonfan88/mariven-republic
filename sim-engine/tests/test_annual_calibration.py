@@ -11,13 +11,16 @@ from engine import EngineResources, tick
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CITY_RAIN_ORDER = ("makadi_port", "katora", "timo", "pela", "ruwa")
+CITY_TEMP_ORDER = ("timo", "ruwa", "katora", "pela", "makadi_port")
 
 
 class AnnualCalibrationTests(unittest.TestCase):
     def test_full_year_climate_and_economy_invariants(self):
         resources = EngineResources.load(ROOT / "data")
         state = json.loads((ROOT / "data" / "state.json").read_text(encoding="utf-8"))
-        rainfall = 0.0
+        rainfall = defaultdict(float)
+        city_temps = defaultdict(list)
         monthly_temps = defaultdict(list)
         monthly_rain = defaultdict(float)
         releases = 0
@@ -25,13 +28,29 @@ class AnnualCalibrationTests(unittest.TestCase):
             state = tick(state, resources=resources)
             month = int(state["date"][5:7])
             katora = state["weather"]["katora"]
-            rainfall += katora["rainfall_mm"]
+            for city in CITY_RAIN_ORDER:
+                rainfall[city] += state["weather"][city]["rainfall_mm"]
+                city_temps[city].append(
+                    state["weather"][city]["temp_high"]
+                )
             monthly_rain[month] += katora["rainfall_mm"]
             monthly_temps[month].append(katora["temp_high"])
             releases += int(state["economy"]["cpi"]["is_release_day"])
             self.assertTrue(1.80 <= state["economy"]["exchange_rate_mvl_per_usd"] <= 2.80)
             json.dumps(state, ensure_ascii=False, allow_nan=False)
-        self.assertTrue(2240 <= rainfall <= 3360, rainfall)
+        self.assertTrue(2240 <= rainfall["katora"] <= 3360, rainfall)
+        for drier, wetter in zip(CITY_RAIN_ORDER, CITY_RAIN_ORDER[1:]):
+            self.assertLess(rainfall[drier], rainfall[wetter], rainfall)
+        annual_temp_means = {
+            city: sum(city_temps[city]) / len(city_temps[city])
+            for city in CITY_TEMP_ORDER
+        }
+        for cooler, warmer in zip(CITY_TEMP_ORDER, CITY_TEMP_ORDER[1:]):
+            self.assertLess(
+                annual_temp_means[cooler],
+                annual_temp_means[warmer],
+                annual_temp_means,
+            )
         wet = sum(monthly_rain[m] for m in (11, 12, 1, 2, 3, 4))
         dry = sum(monthly_rain[m] for m in (5, 6, 7, 8, 9, 10))
         self.assertGreater(wet, dry)

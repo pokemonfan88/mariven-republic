@@ -76,9 +76,9 @@ def inflation_step(
 
     events: list[dict] = []
     release_date = next_state.get("last_release_date")
-    output_components = copy.deepcopy(
-        next_state.get("published_components", current_components)
-    )
+    if "published_components" not in next_state:
+        next_state["published_components"] = copy.deepcopy(current_components)
+    output_components = copy.deepcopy(next_state["published_components"])
     is_new_release = d.day == 15 and release_date != d.isoformat()
     if is_new_release:
         output_components = _publish_previous_month(d, next_state)

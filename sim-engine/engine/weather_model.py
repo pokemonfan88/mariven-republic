@@ -180,33 +180,43 @@ def weather_step(
     if not isinstance(previous_conditions, Mapping):
         previous_conditions = {}
 
+    previous_condition = previous_state.get(
+        "previous_synoptic_condition",
+        previous_conditions.get("katora"),
+    )
+    previous_index = _condition_index(previous_condition)
+    probabilities = _condition_probabilities(
+        previous_index, d.month, soi_value
+    )
+    condition_index = _sample_index(
+        probabilities, rng_factory("condition:synoptic")
+    )
+    condition = CONDITIONS[condition_index]
+    rain_shape, rain_scale = GAMMA_PARAMS[condition_index]
+    synoptic_rainfall_mm = rng_factory(
+        "rain:synoptic"
+    ).gammavariate(rain_shape, rain_scale)
+    temperature_rng = rng_factory("temperature:synoptic")
+    temperature_anomaly = temperature_rng.gauss(0.0, 0.8)
+    diurnal_anomaly = temperature_rng.uniform(-1.5, 1.5)
+
     public: dict[str, object] = {}
     next_conditions: dict[str, str] = {}
     rainfall_total = 0.0
     sunrise, sunset, daylight_hours = _sun_times(d)
 
     for city_key, city in CITIES.items():
-        previous_index = _condition_index(previous_conditions.get(city_key))
-        probabilities = _condition_probabilities(
-            previous_index, d.month, soi_value
-        )
-        condition_index = _sample_index(
-            probabilities, rng_factory(f"condition:{city_key}")
-        )
-        condition = CONDITIONS[condition_index]
         next_conditions[city_key] = condition
 
         high, low = _temperatures(
             d,
             float(city["temp_offset"]),
             condition_index,
-            rng_factory(f"temperature:{city_key}"),
+            temperature_anomaly,
+            diurnal_anomaly,
         )
-        rain_shape, rain_scale = GAMMA_PARAMS[condition_index]
         rainfall_mm = round(
-            rng_factory(f"rain:{city_key}").gammavariate(
-                rain_shape, rain_scale
-            ) * float(city["rain_scale"]),
+            synoptic_rainfall_mm * float(city["rain_scale"]),
             1,
         )
         humidity = _humidity(
@@ -275,6 +285,7 @@ def weather_step(
     })
 
     next_state = {
+        "previous_synoptic_condition": condition,
         "previous_conditions": next_conditions,
         "rainfall_history": rainfall_history,
     }
@@ -347,13 +358,14 @@ def _temperatures(
     d: date,
     city_offset: float,
     condition_index: int,
-    rng: random.Random,
+    temperature_anomaly: float,
+    diurnal_anomaly: float,
 ) -> tuple[float, float]:
     cloud_cooling = (0.0, -0.5, -1.5, -2.5, -3.5)[condition_index]
-    high = temperature_baseline(d) + city_offset + rng.gauss(0.0, 0.8)
+    high = temperature_baseline(d) + city_offset + temperature_anomaly
     high += cloud_cooling / 2.0
     diurnal_range = 8.0 if condition_index < 2 else 5.0
-    low = high - rng.uniform(diurnal_range - 1.5, diurnal_range + 1.5)
+    low = high - (diurnal_range + diurnal_anomaly)
     return round(high, 1), round(max(low, 12.0), 1)
 
 

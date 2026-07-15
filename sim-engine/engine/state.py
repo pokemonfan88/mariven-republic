@@ -60,7 +60,10 @@ def _parse_date(value: Any) -> date:
 def _finite_number(value: Any, path: str) -> float:
     if isinstance(value, bool) or not isinstance(value, Real):
         _fail(path, "expected a finite number")
-    converted = float(value)
+    try:
+        converted = float(value)
+    except OverflowError:
+        _fail(path, "expected a finite number")
     if not math.isfinite(converted):
         _fail(path, "expected a finite number")
     return converted
