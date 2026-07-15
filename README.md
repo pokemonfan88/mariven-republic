@@ -115,7 +115,7 @@ python engine/engine.py --days 365 --dry-run
 python -m unittest discover -s tests -p "test*.py" -v
 ```
 
-`--days` 指定连续执行的每日 Tick 数。`--dry-run` 只把最终状态输出到标准输出，绝不写入 `data/state.json`、JSON 历史归档或 SQLite 事件库；适合年度校准和验证。
+`--days` 指定连续执行的每日 Tick 数。`--dry-run` 会把每个 Tick 的逐日摘要打印到标准输出，但绝不写入 `data/state.json`、JSON 历史归档或 SQLite 事件库；适合年度校准和验证。
 
 ### 2. 运行独立模型演示
 
