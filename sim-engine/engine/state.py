@@ -113,9 +113,10 @@ def validate_state(state: Mapping[str, Any]) -> None:
 
     _parse_date(state.get("date"))
 
-    population = state.get("population")
-    if (isinstance(population, bool) or not isinstance(population, Real)
-            or not math.isfinite(float(population)) or population <= 0):
+    population = _finite_number(
+        state.get("population"), "state.population"
+    )
+    if population <= 0:
         _fail("state.population", "expected a positive number")
 
     dictionaries = {

@@ -108,6 +108,16 @@ class StateTests(unittest.TestCase):
                         StateValidationError, r"^state\.population"):
                     validate_state(broken)
 
+    def test_validate_rejects_oversized_population_with_field_path(self):
+        broken = migrate_state(V1)
+        broken["population"] = 10 ** 10_000
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.population: expected a finite number$",
+        ):
+            validate_state(broken)
+
     def test_validate_rejects_non_finite_core_economic_value(self):
         for field in (
             "inflation_pct",
