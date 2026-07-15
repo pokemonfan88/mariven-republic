@@ -74,6 +74,8 @@ mariven-republic/
 
 ## 数据模型（P0 — 4/8 完成）
 
+P0 已实现范围（天气、汇率、商品价格和 CPI）均通过每日主 Tick 运行；下表其余四项仍为规划模型。CPI 只在每月 15 日发布新的官方值，其他日期保持最近一次发布值。商品数据输出同时包含 `source_month`、`staleness_days` 和 `is_stale`，调用方可以明确识别回填数据的新鲜度。
+
 | # | 模型 | 状态 | 数据源 | 说明 |
 |---|------|------|--------|------|
 | 1 | **天气** | ✅ | 真实SOI (NOAA) | Markov链 + 正弦温度 + Gamma降雨。五城每日输出。ENSO驱动。 |
@@ -103,18 +105,22 @@ mariven-republic/
 
 ## 快速开始
 
-### 1. 运行天气模型
+### 1. 运行主 Tick
 
 ```bash
 cd sim-engine
-python engine/weather_model.py
+python engine/engine.py --days 1
+python engine/engine.py --days 30
+python engine/engine.py --days 365 --dry-run
+python -m unittest discover -s tests -p "test*.py" -v
 ```
 
-输出：365天季节测试 + 5年ENSO验证。
+`--days` 指定连续执行的每日 Tick 数。`--dry-run` 只把最终状态输出到标准输出，绝不写入 `data/state.json`、JSON 历史归档或 SQLite 事件库；适合年度校准和验证。
 
-### 2. 运行汇率 + 商品模型
+### 2. 运行独立模型演示
 
 ```bash
+python engine/weather_model.py
 python engine/exchange_model.py
 python engine/commodities_model.py
 ```
@@ -137,7 +143,7 @@ python engine/commodities_model.py
 
 - **全维度**：75个子系统——从天气到汇率、从登革热到议会支持率
 - **真实数据驱动**：天气由真实SOI驱动，汇率锚定FRED，商品价格来自世界银行
-- **每日运转**：引擎tick推进一天，所有75个数据点更新
+- **每日运转**：主 Tick 推进一天，并按固定顺序更新已实现的 P0 天气、汇率、商品和 CPI 模型
 - **多站产出**：同一事件驱动多个网站的不同内容——气象局、时报、政府门户、航空公司
 - **中英双语**：政府网站支持完整语言切换
 
