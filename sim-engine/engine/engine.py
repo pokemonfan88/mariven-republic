@@ -15,6 +15,7 @@ from commodities_model import CommoditySeries, commodities_step
 from events_model import events_step
 from exchange_model import FxDataset, exchange_step
 from inflation_model import inflation_step
+from population_model import PopulationBaseline, population_step
 from random_streams import make_rng
 from state import prepare_state, validate_state
 from weather_model import SoiSeries, weather_step
@@ -27,6 +28,7 @@ class EngineResources:
     soi_series: SoiSeries
     fx_dataset: FxDataset
     commodity_series: CommoditySeries
+    population_baseline: PopulationBaseline
     nation_profile: dict
 
     @classmethod
@@ -42,6 +44,9 @@ class EngineResources:
             commodity_series=CommoditySeries.from_csv(
                 data_dir / "commodities_real.csv"
             ),
+            population_baseline=PopulationBaseline.from_json(
+                data_dir / "population_baseline_2026.json"
+            ),
             nation_profile=nation_profile,
         )
 
@@ -52,22 +57,39 @@ def tick(
     resources: EngineResources | None = None,
 ) -> dict:
     """Advance one day without mutating or persisting the input state."""
-    prepared = prepare_state(previous_state)
+    resources = resources or EngineResources.load(_default_data_dir())
+    prepared = prepare_state(
+        previous_state,
+        population_baseline=resources.population_baseline,
+    )
     next_state = copy.deepcopy(prepared)
     d = date.fromisoformat(prepared["date"]) + timedelta(days=1)
-    resources = resources or EngineResources.load(_default_data_dir())
     base_seed = prepared["base_seed"]
     schema_version = prepared["schema_version"]
+    legacy_random_schema_version = 2
     model_state = prepared["model_state"]
 
     def weather_rng(stream_name: str):
         return make_rng(
-            base_seed, schema_version, d, "weather", stream_name
+            base_seed,
+            legacy_random_schema_version,
+            d,
+            "weather",
+            stream_name,
         )
 
     def event_rng(stream_name: str):
         return make_rng(
-            base_seed, schema_version, d, "events", stream_name
+            base_seed,
+            legacy_random_schema_version,
+            d,
+            "events",
+            stream_name,
+        )
+
+    def population_rng(stream_name: str):
+        return make_rng(
+            base_seed, schema_version, d, "population", stream_name
         )
 
     weather, weather_state, weather_events = weather_step(
@@ -80,7 +102,9 @@ def tick(
         d,
         model_state["exchange"],
         resources.fx_dataset,
-        make_rng(base_seed, schema_version, d, "exchange"),
+        make_rng(
+            base_seed, legacy_random_schema_version, d, "exchange"
+        ),
     )
     commodities, commodity_state, commodity_events = commodities_step(
         d,
@@ -94,7 +118,9 @@ def tick(
         commodities,
         exchange,
         resources.nation_profile,
-        make_rng(base_seed, schema_version, d, "inflation"),
+        make_rng(
+            base_seed, legacy_random_schema_version, d, "inflation"
+        ),
     )
     next_state["date"] = d.isoformat()
     next_state["weather"] = weather
@@ -117,16 +143,27 @@ def tick(
     })
     next_state["model_state"] = next_model_state
 
-    deaths, general_events = events_step(
+    notable_deaths, general_events = events_step(
         d, next_state, weather, event_rng
     )
+    demographics, population_state, deaths, population_events = population_step(
+        d,
+        model_state["population"],
+        notable_deaths,
+        resources.population_baseline,
+        population_rng,
+    )
+    next_state["population"] = demographics["population"]
+    next_state["demographics"] = demographics
     next_state["deaths_today"] = deaths
+    next_state["model_state"]["population"] = population_state
 
     combined_events = (
         weather_events
         + exchange_events
         + commodity_events
         + cpi_events
+        + population_events
         + general_events
     )
     event_date = d.isoformat()
@@ -137,7 +174,10 @@ def tick(
     next_state["_meta"]["ticks_run"] = (
         prepared["_meta"].get("ticks_run", 0) + 1
     )
-    validate_state(next_state)
+    validate_state(
+        next_state,
+        population_baseline=resources.population_baseline,
+    )
     return next_state
 
 
@@ -147,6 +187,7 @@ def render_brief(state: Mapping[str, Any]) -> str:
     weather = state["weather"]
     economy = state["economy"]
     deaths = state["deaths_today"]
+    demographics = state.get("demographics")
     lines = [
         f"## {d.isoformat()} {_day_of_week_cn(d)}",
         "",
@@ -162,15 +203,41 @@ def render_brief(state: Mapping[str, Any]) -> str:
             f"95#汽油 ${economy['fuel_95_price_mvl']}"
         ),
     ]
-    if deaths["total"] > 0:
-        parts = [
-            f"{key}={value}"
-            for key, value in deaths.items()
-            if value > 0 and key != "total"
-        ]
+    if demographics is not None:
         lines.append(
-            f"**死亡** 共 {deaths['total']} 人（{' | '.join(parts)}）"
+            f"**人口** {demographics['population']:,} | "
+            f"出生 {demographics['births_today']} | "
+            f"全因死亡 {demographics['deaths_all_causes_today']} | "
+            f"净迁移 {demographics['net_migration_today']:+d} | "
+            f"净变动 {demographics['population_change_today']:+d}"
         )
+    if deaths["total"] > 0:
+        notable_parts = [
+            f"{key}={value}"
+            for key in (
+                "traffic",
+                "drowning",
+                "suicide",
+                "murder",
+                "workplace",
+                "lightning",
+                "other",
+            )
+            if (value := deaths.get(key, 0)) > 0
+        ]
+        death_summary = f"**死亡** 全因 {deaths['total']} 人"
+        if deaths.get("notable_total", 0) > 0:
+            death_summary += (
+                f" | 显著 {deaths['notable_total']} 人"
+                f"（{' | '.join(notable_parts)}）"
+            )
+        if deaths.get("non_notable", 0) > 0:
+            death_summary += (
+                f" | 其他疾病/自然 {deaths['non_notable']} 人"
+            )
+        if deaths.get("excess", 0) > 0:
+            death_summary += f" | 超额 {deaths['excess']} 人"
+        lines.append(death_summary)
     else:
         lines.append("**死亡** 无")
     if state["events_today"]:

@@ -43,13 +43,36 @@ class StateTests(unittest.TestCase):
         self.assertEqual(migrated["base_seed"], 42)
         self.assertEqual(migrated["weather"]["condition"], "多云")
         self.assertEqual(set(migrated["model_state"]),
-                         {"weather", "exchange", "commodities", "inflation"})
+                         {"weather", "exchange", "commodities", "inflation",
+                          "population"})
+        self.assertEqual(SCHEMA_VERSION, 3)
+        self.assertEqual(migrated["demographics"]["population"], 1_200_000)
+        self.assertEqual(
+            sum(migrated["model_state"]["population"]["cohorts"]["male"])
+            + sum(migrated["model_state"]["population"]["cohorts"]["female"]),
+            1_200_000,
+        )
 
-    def test_prepare_copies_v2_state(self):
-        v2 = prepare_state(V1)
-        copied = prepare_state(v2)
-        self.assertEqual(copied, v2)
-        self.assertIsNot(copied, v2)
+    def test_prepare_copies_v3_state(self):
+        v3 = prepare_state(V1)
+        copied = prepare_state(v3)
+        self.assertEqual(copied, v3)
+        self.assertIsNot(copied, v3)
+
+    def test_prepare_migrates_v2_state_to_v3(self):
+        v2 = copy.deepcopy(migrate_state(V1))
+        v2["schema_version"] = 2
+        v2.pop("demographics", None)
+        v2["model_state"].pop("population", None)
+        v2["model_state"]["future_model"] = {"preserved": True}
+
+        migrated = prepare_state(v2)
+
+        self.assertEqual(migrated["schema_version"], 3)
+        self.assertIn("population", migrated["model_state"])
+        self.assertEqual(
+            migrated["model_state"]["future_model"], {"preserved": True}
+        )
 
     def test_invalid_date_reports_field_path(self):
         broken = copy.deepcopy(V1)
@@ -91,13 +114,73 @@ class StateTests(unittest.TestCase):
 
     def test_validate_rejects_missing_core_dictionary(self):
         for field in ("weather", "economy", "government", "deaths_today",
-                      "model_state"):
+                      "demographics", "model_state"):
             with self.subTest(field=field):
                 broken = migrate_state(V1)
                 broken.pop(field)
                 with self.assertRaisesRegex(
                         StateValidationError, rf"^state\.{field}"):
                     validate_state(broken)
+
+    def test_validate_rejects_population_cohort_mismatch(self):
+        broken = migrate_state(V1)
+        broken["model_state"]["population"]["cohorts"]["male"][34] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.population",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_public_population_mismatch(self):
+        broken = migrate_state(V1)
+        broken["demographics"]["population"] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.demographics\.population",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_public_population_stock_mismatch(self):
+        broken = migrate_state(V1)
+        broken["demographics"]["male_population"] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.demographics\.male_population",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_population_cycle_date_mismatch(self):
+        broken = migrate_state(V1)
+        broken["date"] = "2026-08-12"
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.population\.cycle\.offset",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_invalid_last_aging_month(self):
+        broken = migrate_state(V1)
+        broken["model_state"]["population"]["last_aging_month"] = "garbage"
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.population\.last_aging_month",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_missing_population_calendar_year(self):
+        broken = migrate_state(V1)
+        del broken["model_state"]["population"]["calendar_year"]
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.population\.calendar_year",
+        ):
+            validate_state(broken)
 
     def test_validate_rejects_non_positive_population(self):
         for population in (0, -1):

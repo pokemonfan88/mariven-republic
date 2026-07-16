@@ -171,6 +171,12 @@ class SevenDayReportTests(unittest.TestCase):
     def test_script_reports_commodity_values(self):
         self.assertIn("sugar=", self.result.stdout)
 
+    def test_script_reports_population_without_internal_death_fields(self):
+        self.assertIn("Population:", self.result.stdout)
+        self.assertIn("births=", self.result.stdout)
+        self.assertNotIn("notable_total=", self.result.stdout)
+        self.assertNotIn("non_notable=", self.result.stdout)
+
     def test_script_does_not_modify_runtime_files(self):
         self.assertEqual(self.before, self.after)
 

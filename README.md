@@ -35,6 +35,7 @@ mariven-republic/
     │   ├── exchange_model.py  # 汇率 (FRED真实数据 + 五币篮子)
     │   ├── commodities_model.py # 商品 (世界银行Pink Sheet)
     │   ├── inflation_model.py # CPI通胀 (加权篮子 + 发布日逻辑)
+    │   ├── population_model.py # 人口 (单岁年龄×性别完整队列)
     │   ├── engine.py          # 每日Tick主循环
     │   ├── archive.py         # JSON快照 + SQLite存档
     │   └── retrieve.py        # 历史检索 + 世界文档搜索
@@ -47,7 +48,14 @@ mariven-republic/
     │   ├── usd_cny.csv        # FRED 人民币汇率
     │   ├── commodities_real.csv # 世界银行商品价格 (1960-2024)
     │   ├── cyclones_mariven.json # IBTrACS 南太平洋气旋 (24次近距)
+    │   ├── population_baseline_2026.json # 2026人口队列与生命表基线
+    │   ├── sources/
+    │   │   └── wpp2024_fiji_2026_single_age_sex.json # UN WPP官方源摘录
     │   └── nation_profile.json   # 国家静态设定
+    │
+    ├── scripts/
+    │   ├── build_population_baseline.py # 可复现人口基线生成器
+    │   └── extract_wpp_fiji_2026.py # WPP官方CSV的可复现提取器
     │
     ├── worldbuilding/         # 世界构建文档 (84份)
     │   ├── constitution.md    # 宪法 (96条, 英文)
@@ -72,9 +80,9 @@ mariven-republic/
 
 ---
 
-## 数据模型（P0 — 4/8 完成）
+## 数据模型（P0 — 5/8 完成）
 
-P0 已实现范围（天气、汇率、商品价格和 CPI）均通过每日主 Tick 运行；下表其余四项仍为规划模型。CPI 只在每月 15 日发布新的官方值，其他日期保持最近一次发布值。商品数据输出同时包含 `source_month`、`staleness_days` 和 `is_stale`，调用方可以明确识别回填数据的新鲜度。
+P0 已实现范围（天气、汇率、商品价格、CPI 和人口）均通过每日主 Tick 运行；下表其余三项仍为规划模型。CPI 只在每月 15 日发布新的官方值，其他日期保持最近一次发布值。商品数据输出同时包含 `source_month`、`staleness_days` 和 `is_stale`，调用方可以明确识别回填数据的新鲜度。人口模型使用 schema v3，内部维护男性、女性各 0–100+ 岁共 202 个队列及生日月份桶，并统一结算出生、全因死亡、侨民回流、外国移民和永久移出。
 
 | # | 模型 | 状态 | 数据源 | 说明 |
 |---|------|------|--------|------|
@@ -83,7 +91,7 @@ P0 已实现范围（天气、汇率、商品价格和 CPI）均通过每日主 
 | 3 | **商品价格** | ✅ | 世界银行Pink Sheet | 糖/金/布伦特原油。1960-2024真实月度数据。 |
 | 4 | **CPI通胀** | ✅ | 上游模型联动 | 食品35%+燃料18%+住房15%+交通12%+其他20%。每月15日发布。 |
 | 5 | GDP | ⬜ | — | 季度发布，商品价格+旅游+天气冲击 |
-| 6 | 人口 | ⬜ | — | 出生率-死亡率+净移民差分方程 |
+| 6 | **人口** | ✅ | 斐济统计局 + UN WPP 2024 | 单岁年龄×性别队列；首个365天精确增长1.9%，随后按TFR、生命表和迁移结构内生演化。 |
 | 7 | 登革热 | ⬜ | — | 季节性SIR + Wolbachia阻断 |
 | 8 | 犯罪 | ⬜ | — | 失业率回归 + 泊松抽样 |
 
@@ -100,6 +108,8 @@ P0 已实现范围（天气、汇率、商品价格和 CPI）均通过每日主 
 | **汇率** | FRED (美联储经济数据库) | 月度 | 1971-2026 |
 | **商品价格** | World Bank Pink Sheet | 月度 | 1960-2024 |
 | **外汇** | FRED | 月度 | AUD/NZD/EUR 1971-, CNY 1981- |
+| **人口年龄—性别先验** | UN World Population Prospects 2024 | 2026中方案 | Fiji 0–100+单岁、分性别；CC BY 3.0 IGO |
+| **人口普查交叉核对** | Fiji Bureau of Statistics | 2017人口普查 | 官方0–4至75+年龄—性别结构 |
 
 ---
 
@@ -140,7 +150,7 @@ python -m unittest discover -s tests -p "test*.py" -v
 
 - **全维度**：75个子系统——从天气到汇率、从登革热到议会支持率
 - **真实数据驱动**：天气由真实SOI驱动，汇率锚定FRED，商品价格来自世界银行
-- **每日运转**：主 Tick 推进一天，并按固定顺序更新已实现的 P0 天气、汇率、商品和 CPI 模型
+- **每日运转**：主 Tick 推进一天，并按固定顺序更新已实现的 P0 天气、汇率、商品、CPI 和人口模型
 - **多站产出**：同一事件驱动多个网站的不同内容——气象局、时报、政府门户、航空公司
 - **中英双语**：政府网站支持完整语言切换
 
@@ -150,7 +160,7 @@ python -m unittest discover -s tests -p "test*.py" -v
 
 欢迎提交 Issue 和 Pull Request。特别需要的帮助：
 
-- [ ] P0剩余模型 (GDP, 人口, 登革热, 犯罪)
+- [ ] P0剩余模型 (GDP, 登革热, 犯罪)
 - [ ] P1模型 (海洋, 旅游, 产业, 火山)
 - [ ] IBTrACS气旋实时接入
 - [ ] 每日新闻自动生成管道

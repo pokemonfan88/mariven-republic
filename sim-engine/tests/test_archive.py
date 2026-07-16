@@ -33,6 +33,31 @@ def sample_state(*, events=None):
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_daily_summary_keeps_legacy_notable_death_total(self):
+        state = sample_state()
+        state["deaths_today"] = {
+            "total": 18,
+            "notable_total": 2,
+            "traffic": 1,
+            "drowning": 1,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive_day(
+                state,
+                state_path=root / "state.json",
+                archive_dir=root / "archive",
+                db_path=root / "events.db",
+            )
+
+            with closing(sqlite3.connect(root / "events.db")) as connection:
+                deaths_total = connection.execute(
+                    "SELECT deaths_total FROM daily_summary"
+                ).fetchone()[0]
+
+        self.assertEqual(deaths_total, 2)
+
     def test_archive_writes_json_and_sqlite_atomically(self):
         state = sample_state(
             events=[
