@@ -142,5 +142,38 @@ class CliTests(unittest.TestCase):
         self.assertIn("positive", invalid.stderr)
 
 
+class SevenDayReportTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        state = ROOT / "data" / "state.json"
+        database = ROOT / "output" / "events.db"
+        archive = ROOT / "output" / "archive"
+        cls.before = (digest(state), digest(database), directory_digests(archive))
+        cls.result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "warn_default_encoding",
+                "-W",
+                "error::EncodingWarning",
+                str(ROOT / "test_7days.py"),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        cls.after = (digest(state), digest(database), directory_digests(archive))
+
+    def test_script_reads_utf8_state_with_host_encoding(self):
+        self.assertEqual(self.result.returncode, 0, self.result.stderr)
+        self.assertIn("7-day test complete", self.result.stdout)
+
+    def test_script_reports_commodity_values(self):
+        self.assertIn("sugar=", self.result.stdout)
+
+    def test_script_does_not_modify_runtime_files(self):
+        self.assertEqual(self.before, self.after)
+
+
 if __name__ == "__main__":
     unittest.main()
