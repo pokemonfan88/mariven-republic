@@ -1,178 +1,214 @@
 # 马里文共和国 · Mariven Republic
 
-> 一个全维度、数据驱动的活性国家模型（Living Nation Model）。
-> 虚拟发展中国家，南太平洋，真实数据驱动，每天自己更新自己。
+> 一个以真实公开数据为锚点、按日确定性运行的虚构国家模型。
+> A deterministic living-nation simulation anchored in real public data.
 
----
+马里文共和国是一个虚构的南太平洋发展中国家。本仓库把世界观资料、公开数据、确定性模拟模型和多个国家网站放在同一套可追溯体系中：天气、汇率、商品价格、CPI 与人口会在每日 Tick 中依次更新，相同状态与种子始终产生相同结果。
 
-## 概述
+> [!IMPORTANT]
+> 马里文、其政府、机构、人物与事件均为虚构内容。现实数据仅用于模型校准和方法参考。
 
-马里文共和国是一个**虚构但完全真实的模拟国家**。它不是游戏——没有玩家目标。它不是一个实验——没有假设要验证。它是一个**每天自己运转的活性模型**：天气在变、汇率在波动、CPI每月15日发布、气旋季有真实历史数据可查。
+## English summary
 
-**坐标**：20°47'41.8"S, 176°26'05.4"E（南太平洋，斐济以东约400km）
-**人口**：120万 | **面积**：14,820 km² | **四岛**：马卡迪·蒂莫·佩拉·鲁瓦
-**独立**：1970年从英国独立 | **现行宪法**：1992年（2013年修订）
-**GDP**：$75亿 USD | **人均**：$6,250 | **时区**：UTC+12
+Mariven Republic is a fictional South Pacific country implemented as a reproducible living-nation model. The repository combines 84 worldbuilding documents, public datasets, government-facing web prototypes, and a deterministic Python simulation engine. Five P0 models currently run in the daily pipeline: weather, foreign exchange, commodity prices, CPI inflation, and a full single-age population cohort model.
 
----
+## 国家快照
 
-## 项目结构
+| 项目 | 设定 |
+|---|---|
+| 坐标 | 20°47′41.8″S, 176°26′05.4″E，斐济以东约 400 km |
+| 国土面积 | 14,820 km² |
+| 基准人口 | 1,200,000（2026-08-11） |
+| 主要岛屿 | 马卡迪、蒂莫、佩拉、鲁瓦 |
+| 独立 | 1970 年脱离英国独立 |
+| 宪法 | 1992 年宪法，2013 年修订 |
+| 时区 | UTC+12 |
+| 货币 | 马里文元（MVL） |
 
-```
-mariven-republic/
-├── README.md
-│
-├── gov.mv/                    # 政府门户网站
-│   └── index.html             # 中英双语，75项数据面板
-├── meteo.gov.mv/              # 气象局网站
-│   └── index.html             # 天气/海洋/火山/UV
-├── airmariven.mv/             # 国家航空网站
-│   └── index.html             # 航班/预订/行李
-│
-└── sim-engine/                # 模拟引擎
-    ├── engine/                # 核心模型
-    │   ├── weather_model.py   # 天气 (Markov + 真实SOI + 正弦温度)
-    │   ├── exchange_model.py  # 汇率 (FRED真实数据 + 五币篮子)
-    │   ├── commodities_model.py # 商品 (世界银行Pink Sheet)
-    │   ├── inflation_model.py # CPI通胀 (加权篮子 + 发布日逻辑)
-    │   ├── population_model.py # 人口 (单岁年龄×性别完整队列)
-    │   ├── engine.py          # 每日Tick主循环
-    │   ├── archive.py         # JSON快照 + SQLite存档
-    │   └── retrieve.py        # 历史检索 + 世界文档搜索
-    │
-    ├── data/                  # 真实数据源
-    │   ├── soi_monthly.csv    # NOAA南方涛动指数 (1991-2026)
-    │   ├── aud_usd.csv        # FRED 澳元汇率 (1971-2026)
-    │   ├── nzd_usd.csv        # FRED 新西兰元汇率
-    │   ├── eur_usd.csv        # FRED 欧元汇率
-    │   ├── usd_cny.csv        # FRED 人民币汇率
-    │   ├── commodities_real.csv # 世界银行商品价格 (1960-2024)
-    │   ├── cyclones_mariven.json # IBTrACS 南太平洋气旋 (24次近距)
-    │   ├── population_baseline_2026.json # 2026人口队列与生命表基线
-    │   ├── sources/
-    │   │   └── wpp2024_fiji_2026_single_age_sex.json # UN WPP官方源摘录
-    │   └── nation_profile.json   # 国家静态设定
-    │
-    ├── scripts/
-    │   ├── build_population_baseline.py # 可复现人口基线生成器
-    │   └── extract_wpp_fiji_2026.py # WPP官方CSV的可复现提取器
-    │
-    ├── worldbuilding/         # 世界构建文档 (84份)
-    │   ├── constitution.md    # 宪法 (96条, 英文)
-    │   ├── constitution-zh.md # 宪法 (中文翻译)
-    │   ├── geography-anchor.md # 地理锚点
-    │   ├── 03-history.md      # 简史
-    │   ├── 03d-post-independence-history.md # 独立后详细史
-    │   ├── 04-demographics.md # 人口与宗教
-    │   ├── 05-politics.md     # 政治体系
-    │   ├── 09-economy.md      # 经济结构
-    │   ├── ... (74份更多文档)
-    │   └── misc-data.md       # 各类统计数据
-    │
-    ├── docs/
-    │   └── model-catalog.md   # 75子系统模型全量目录
-    │
-    ├── widgets/
-    │   └── weather-widget.html # 天气组件
-    │
-    └── dashboard.html         # 国家运营中心 (25面板)
+## 当前可运行模型
+
+P0 已完成 5/8。五个已实现模型均由 [`sim-engine/engine/engine.py`](sim-engine/engine/engine.py) 的每日主循环统一编排。
+
+| 模型 | 状态 | 核心方法 | 主要输出 |
+|---|:---:|---|---|
+| 天气 | ✅ | Markov 状态、南半球季节曲线、Gamma 降雨、SOI/ENSO | 五城天气、降雨、海温与风险事件 |
+| 汇率 | ✅ | 五币篮子、均值回归、确定性随机冲击 | MVL/USD 与交叉汇率 |
+| 商品价格 | ✅ | 世界银行月度数据、确定性回填 | 糖、黄金、布伦特原油与数据新鲜度 |
+| CPI 通胀 | ✅ | 分类权重、燃油传导、月度发布日 | CPI 指数、同比、环比和分类贡献 |
+| 人口 | ✅ | 单岁年龄×性别队列、生命表、出生与迁移账本 | 总人口、年龄结构、抚养比与每日人口流量 |
+| GDP | ⬜ | 规划中 | 季度 GDP 与增长贡献 |
+| 登革热 | ⬜ | 规划中 | 周病例、传播状态与医疗压力 |
+| 犯罪 | ⬜ | 规划中 | 分类案件、风险与事件 |
+
+完整子系统路线图见 [`sim-engine/docs/model-catalog.md`](sim-engine/docs/model-catalog.md)。
+
+## 完整年龄队列人口模型
+
+人口模型使用 schema v3 状态，是当前模拟引擎中最完整的结构模型：
+
+- 内部维护男性、女性各 0–100+ 岁，共 202 个单岁队列。
+- 每个年龄—性别队列再分为 12 个生日月份桶，月初按桶推进年龄。
+- 统一结算出生、基线全因死亡、显著/超额死亡、侨民回流、外国移民与永久移出。
+- 显著事故死亡由事件模型分类，但人口只在统一账本中扣除一次。
+- 第一滚动 365 天在无超额死亡情景下精确执行：出生 27,500、基线死亡 6,600、回流 2,500、外国移民 2,200、移出 2,800，期末人口 1,222,800。
+- 第一周期后，出生按年龄别生育暴露与 TFR 路径演化；死亡按年龄结构与生命表演化；迁移参数按版本化周期状态持久化。
+- 2026 基线的中位年龄、生命表和年度死亡量经过联合校准，内部队列、公开人口对象与顶层总人口必须始终一致。
+
+基线设计说明见 [`docs/superpowers/specs/2026-07-16-complete-age-cohort-population-model-design.md`](docs/superpowers/specs/2026-07-16-complete-age-cohort-population-model-design.md)。
+
+## 每日数据流
+
+```mermaid
+flowchart LR
+    A["加载并迁移状态"] --> B["天气"]
+    B --> C["汇率"]
+    C --> D["商品价格"]
+    D --> E["CPI"]
+    E --> F["显著事件与死亡分类"]
+    F --> G["人口队列结算"]
+    G --> H["schema v3 完整验证"]
+    H --> I["JSON 快照与 SQLite 索引"]
 ```
 
----
-
-## 数据模型（P0 — 5/8 完成）
-
-P0 已实现范围（天气、汇率、商品价格、CPI 和人口）均通过每日主 Tick 运行；下表其余三项仍为规划模型。CPI 只在每月 15 日发布新的官方值，其他日期保持最近一次发布值。商品数据输出同时包含 `source_month`、`staleness_days` 和 `is_stale`，调用方可以明确识别回填数据的新鲜度。人口模型使用 schema v3，内部维护男性、女性各 0–100+ 岁共 202 个队列及生日月份桶，并统一结算出生、全因死亡、侨民回流、外国移民和永久移出。
-
-| # | 模型 | 状态 | 数据源 | 说明 |
-|---|------|------|--------|------|
-| 1 | **天气** | ✅ | 真实SOI (NOAA) | Markov链 + 正弦温度 + Gamma降雨。五城每日输出。ENSO驱动。 |
-| 2 | **汇率** | ✅ | 真实FRED数据 | 五币篮子(AUD/NZD/USD/CNY/EUR)加权。央行干预。OU过程。 |
-| 3 | **商品价格** | ✅ | 世界银行Pink Sheet | 糖/金/布伦特原油。1960-2024真实月度数据。 |
-| 4 | **CPI通胀** | ✅ | 上游模型联动 | 食品35%+燃料18%+住房15%+交通12%+其他20%。每月15日发布。 |
-| 5 | GDP | ⬜ | — | 季度发布，商品价格+旅游+天气冲击 |
-| 6 | **人口** | ✅ | 斐济统计局 + UN WPP 2024 | 单岁年龄×性别队列；首个365天精确增长1.9%，随后按TFR、生命表和迁移结构内生演化。 |
-| 7 | 登革热 | ⬜ | — | 季节性SIR + Wolbachia阻断 |
-| 8 | 犯罪 | ⬜ | — | 失业率回归 + 泊松抽样 |
-
-完整75个子系统模型目录：[model-catalog.md](sim-engine/docs/model-catalog.md)
-
----
-
-## 数据来源（全部公开免费）
-
-| 数据 | 来源 | 频率 | 覆盖 |
-|------|------|------|------|
-| **SOI** | NOAA / Queensland Government | 月度 | 1991-2026 |
-| **气旋轨迹** | IBTrACS v4 (NOAA) | 6小时 | 1968-2024 (南太平洋) |
-| **汇率** | FRED (美联储经济数据库) | 月度 | 1971-2026 |
-| **商品价格** | World Bank Pink Sheet | 月度 | 1960-2024 |
-| **外汇** | FRED | 月度 | AUD/NZD/EUR 1971-, CNY 1981- |
-| **人口年龄—性别先验** | UN World Population Prospects 2024 | 2026中方案 | Fiji 0–100+单岁、分性别；CC BY 3.0 IGO |
-| **人口普查交叉核对** | Fiji Bureau of Statistics | 2017人口普查 | 官方0–4至75+年龄—性别结构 |
-
----
+各模型使用隔离的命名随机流。人口模型升级到 schema v3 后，天气、汇率、商品、CPI 和既有事件仍保留原有 schema v2 随机序列，避免模型新增导致历史结果漂移。
 
 ## 快速开始
 
-### 1. 运行主 Tick
+### 环境
+
+- Python 3
+- 运行时只使用 Python 标准库
+- Tick 运行时无需联网
+
+### 运行每日模拟
 
 ```bash
 cd sim-engine
+
+# 推进 1 天并写入状态、JSON 归档和 SQLite
 python engine/engine.py --days 1
+
+# 连续推进 30 天
 python engine/engine.py --days 30
+
+# 只运行和打印 365 天，不修改任何运行文件
 python engine/engine.py --days 365 --dry-run
 ```
 
-`--days` 指定连续执行的每日 Tick 数。`--dry-run` 会把每个 Tick 的逐日摘要打印到标准输出，但绝不写入 `data/state.json`、JSON 历史归档或 SQLite 事件库；适合年度校准和验证。
+`--dry-run` 不会修改：
 
-### 2. 运行测试
+- `sim-engine/data/state.json`
+- `sim-engine/output/events.db`
+- `sim-engine/output/archive/`
+
+### 运行测试
 
 ```bash
+cd sim-engine
 python -m unittest discover -s tests -p "test*.py" -v
 ```
 
-### 3. 查看国家运营中心
+当前测试覆盖确定性、随机流隔离、schema v1/v2→v3 迁移、严格 JSON、断点恢复、死亡去重、年龄推进、365 天精确账本、2035 长期演化，以及 dry-run 不落盘。
 
-浏览器打开 `sim-engine/dashboard.html` — 75张数据卡片 + 实时状态。
+### 查看七天诊断报告
 
-### 4. 浏览网站
+```bash
+cd sim-engine
+python test_7days.py
+```
 
-- `gov.mv/index.html` — 政府门户
-- `meteo.gov.mv/index.html` — 气象局
-- `airmariven.mv/index.html` — 航空
+## 数据来源与可追溯性
+
+| 数据 | 权威来源 | 用途 |
+|---|---|---|
+| SOI / ENSO | NOAA、Queensland Government | 天气状态与降雨季节性 |
+| 气旋轨迹 | NOAA IBTrACS v4 | 南太平洋历史气旋锚点 |
+| 外汇 | Federal Reserve Economic Data（FRED） | AUD、NZD、EUR、CNY 等汇率篮子 |
+| 商品价格 | World Bank Pink Sheet | 糖、黄金和布伦特原油 |
+| 单岁人口先验 | UN World Population Prospects 2024 | Fiji 2026 中方案、0–100+、分性别结构 |
+| 人口普查交叉核对 | Fiji Bureau of Statistics | 2017 年年龄—性别人口结构 |
+
+人口源数据链可复现：
+
+1. [`sim-engine/scripts/extract_wpp_fiji_2026.py`](sim-engine/scripts/extract_wpp_fiji_2026.py) 从联合国官方压缩 CSV 提取 Fiji 2026 的 101 个单岁年龄。
+2. [`sim-engine/data/sources/wpp2024_fiji_2026_single_age_sex.json`](sim-engine/data/sources/wpp2024_fiji_2026_single_age_sex.json) 保存小型源摘录、官方 URL、版本、访问日期、许可和源文件/数组 SHA-256。
+3. [`sim-engine/scripts/build_population_baseline.py`](sim-engine/scripts/build_population_baseline.py) 将先验校准为马里文 1,200,000 人基线。
+4. [`sim-engine/data/population_baseline_2026.json`](sim-engine/data/population_baseline_2026.json) 是 Tick 直接读取的已提交运行产物。
+
+联合国 WPP 数据按 CC BY 3.0 IGO 标注；其他外部数据的再利用应遵循各自来源条款。
+
+## 仓库结构
+
+```text
+mariven-republic/
+├── README.md
+├── docs/
+│   └── superpowers/specs/       # 已确认的模型设计规格
+├── gov.mv/                      # 政府门户原型
+├── meteo.gov.mv/                # 气象局网站原型
+├── airmariven.mv/               # 国家航空网站原型
+└── sim-engine/
+    ├── engine/                  # 每日 Tick、状态、模型、归档和检索
+    ├── data/                    # 运行状态、校准数据和源数据摘录
+    ├── scripts/                 # 可复现数据构建脚本
+    ├── tests/                   # unittest 测试套件
+    ├── worldbuilding/           # 84 份国家设定与制度文档
+    ├── docs/model-catalog.md    # 全量子系统目录
+    ├── dashboard.html           # 国家运营中心原型
+    └── test_7days.py            # 七天只读诊断报告
+```
+
+## 主要入口
+
+- [模拟引擎](sim-engine/engine/engine.py)
+- [人口模型](sim-engine/engine/population_model.py)
+- [模型目录](sim-engine/docs/model-catalog.md)
+- [人口与宗教设定](sim-engine/worldbuilding/04-demographics.md)
+- [政府门户](gov.mv/index.html)
+- [气象局](meteo.gov.mv/index.html)
+- [马里文航空](airmariven.mv/index.html)
+- [国家运营中心](sim-engine/dashboard.html)
+
+## 设计原则
+
+- **确定性优先**：相同状态、日期、schema 与命名随机流产生相同结果。
+- **单一账本**：人口、死亡和流量只由一个权威模型结算，避免重复计算。
+- **真实数据只作锚点**：现实数据提供形状、范围和方法，不把 Fiji 直接复制成马里文。
+- **运行时离线**：外部数据先提取、校验并提交，日常 Tick 不访问网络。
+- **状态可迁移**：旧 schema 显式迁移，新 schema 严格拒绝损坏状态。
+- **模型隔离**：新增模型不得改变已有模型的随机结果。
+- **世界观可追溯**：关键数字同时落在设定文档、源数据、生成脚本和测试中。
+
+## 路线图
+
+- [x] 天气
+- [x] 汇率
+- [x] 商品价格
+- [x] CPI 通胀
+- [x] 完整年龄队列人口模型
+- [ ] GDP
+- [ ] 登革热
+- [ ] 犯罪
+- [ ] 海洋、旅游、产业与灾害等 P1 模型
+- [ ] 网站与模拟状态的自动发布管道
+
+## 参与项目
+
+欢迎通过 Issue 或 Pull Request 提交：
+
+- 模型校准与测试改进
+- 可核验的公开数据源
+- 世界观内部一致性修订
+- 政府、气象、航空与运营中心界面
+- 中英文文档改进
+
+提交模型改动时，请同时说明数据来源、状态迁移影响、随机流兼容性和验证方法。
+
+## 许可说明
+
+本仓库目前尚未单独提交项目级 `LICENSE` 文件。外部数据、资料与摘录仍受其原始来源条款约束；引用或再利用前请核对对应数据文件中的来源和许可信息。
 
 ---
 
-## 设计理念
-
-**"活性国家模型"（Living Nation Model）**
-
-- **全维度**：75个子系统——从天气到汇率、从登革热到议会支持率
-- **真实数据驱动**：天气由真实SOI驱动，汇率锚定FRED，商品价格来自世界银行
-- **每日运转**：主 Tick 推进一天，并按固定顺序更新已实现的 P0 天气、汇率、商品、CPI 和人口模型
-- **多站产出**：同一事件驱动多个网站的不同内容——气象局、时报、政府门户、航空公司
-- **中英双语**：政府网站支持完整语言切换
-
----
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request。特别需要的帮助：
-
-- [ ] P0剩余模型 (GDP, 登革热, 犯罪)
-- [ ] P1模型 (海洋, 旅游, 产业, 火山)
-- [ ] IBTrACS气旋实时接入
-- [ ] 每日新闻自动生成管道
-- [ ] 移动端响应式优化
-
----
-
-## 许可
-
-MIT License © 2026
-
----
-
-*"本宪法诞生于一场战争的灰烬之中——那场战争夺走了十五万八千人的生命。本文件中的每一个字——都是一块石头——压在他们的坟上——不是要加重——是要建一座他们终于可以在里面安息的房子。"*
-— 1992年《马里文共和国宪法》序言
+> “本宪法诞生于一场战争的灰烬之中……不是要加重，是要建一座他们终于可以在里面安息的房子。”
+> — 1992 年《马里文共和国宪法》序言（虚构）
