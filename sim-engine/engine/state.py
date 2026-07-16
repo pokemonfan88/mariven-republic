@@ -4,11 +4,20 @@ import math
 from calendar import monthrange
 from collections.abc import Mapping
 from datetime import date
+from functools import lru_cache
 from numbers import Real
+from pathlib import Path
 from typing import Any
 
+from population_model import (
+    PopulationBaseline,
+    PopulationDataError,
+    initialize_population_state,
+    population_snapshot,
+    validate_population_state,
+)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _CORE_DICTIONARIES = (
     "_meta",
@@ -16,9 +25,12 @@ _CORE_DICTIONARIES = (
     "economy",
     "government",
     "deaths_today",
+    "demographics",
     "model_state",
 )
-_MODEL_DICTIONARIES = ("weather", "exchange", "commodities", "inflation")
+_MODEL_DICTIONARIES = (
+    "weather", "exchange", "commodities", "inflation", "population",
+)
 _CORE_ECONOMIC_VALUES = (
     "inflation_pct",
     "unemployment_pct",
@@ -30,7 +42,7 @@ _CORE_ECONOMIC_VALUES = (
 
 
 class StateValidationError(ValueError):
-    """Raised when a simulation state does not match schema v2."""
+    """Raised when a simulation state does not match schema v3."""
 
 
 def _fail(path: str, message: str) -> None:
@@ -100,8 +112,12 @@ def _baseline_cpi_history(current_date: date,
     ]
 
 
-def validate_state(state: Mapping[str, Any]) -> None:
-    """Validate a schema-v2 state, raising an error with a field path."""
+def validate_state(
+    state: Mapping[str, Any],
+    *,
+    population_baseline: PopulationBaseline | None = None,
+) -> None:
+    """Validate a schema-v3 state, raising an error with a field path."""
     if not isinstance(state, Mapping):
         _fail("state", "expected a dictionary")
 
@@ -111,12 +127,18 @@ def validate_state(state: Mapping[str, Any]) -> None:
             f"expected {SCHEMA_VERSION}",
         )
 
-    _parse_date(state.get("date"))
+    current_date = _parse_date(state.get("date"))
 
-    population = _finite_number(
+    population_number = _finite_number(
         state.get("population"), "state.population"
     )
-    if population <= 0:
+    population_value = state.get("population")
+    if (
+        isinstance(population_value, bool)
+        or not isinstance(population_value, int)
+    ):
+        _fail("state.population", "expected a positive integer")
+    if population_number <= 0:
         _fail("state.population", "expected a positive number")
 
     dictionaries = {
@@ -136,6 +158,162 @@ def validate_state(state: Mapping[str, Any]) -> None:
 
     if not isinstance(state.get("events_today"), list):
         _fail("state.events_today", "expected a list")
+
+    demographics = dictionaries["demographics"]
+    if demographics.get("population") != population_value:
+        _fail(
+            "state.demographics.population",
+            "does not match state.population",
+        )
+    baseline = population_baseline or _default_population_baseline()
+    try:
+        validate_population_state(
+            model_state["population"],
+            population_value,
+            baseline,
+            current_date=current_date,
+        )
+    except PopulationDataError as exc:
+        raise StateValidationError(str(exc)) from exc
+    expected_demographics = population_snapshot(model_state["population"])
+    for key in (
+        "population",
+        "male_population",
+        "female_population",
+        "median_age",
+        "children_0_14",
+        "working_age_15_64",
+        "elderly_65_plus",
+        "women_15_49",
+        "dependency_ratio_pct",
+        "annualized_growth_target_pct",
+        "baseline_period_end",
+        "partial_year",
+        "five_year_age_groups",
+    ):
+        if demographics.get(key) != expected_demographics[key]:
+            _fail(
+                f"state.demographics.{key}",
+                "does not match population cohorts",
+            )
+    non_negative_flow_fields = (
+        "births_today",
+        "deaths_all_causes_today",
+        "baseline_deaths_today",
+        "notable_deaths_today",
+        "other_deaths_today",
+        "excess_deaths_today",
+        "returning_diaspora_today",
+        "foreign_immigrants_today",
+        "emigrants_today",
+    )
+    for key in non_negative_flow_fields:
+        value = demographics.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            _fail(
+                f"state.demographics.{key}",
+                "expected a non-negative integer",
+            )
+    for key in (
+        "net_migration_today",
+        "natural_increase_today",
+        "population_change_today",
+    ):
+        value = demographics.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            _fail(f"state.demographics.{key}", "expected an integer")
+    expected_net_migration = (
+        demographics["returning_diaspora_today"]
+        + demographics["foreign_immigrants_today"]
+        - demographics["emigrants_today"]
+    )
+    if demographics["net_migration_today"] != expected_net_migration:
+        _fail(
+            "state.demographics.net_migration_today",
+            "does not match migration flows",
+        )
+    expected_natural_increase = (
+        demographics["births_today"]
+        - demographics["deaths_all_causes_today"]
+    )
+    if demographics["natural_increase_today"] != expected_natural_increase:
+        _fail(
+            "state.demographics.natural_increase_today",
+            "does not match births and deaths",
+        )
+    if demographics["population_change_today"] != (
+        expected_natural_increase + expected_net_migration
+    ):
+        _fail(
+            "state.demographics.population_change_today",
+            "does not match natural increase and net migration",
+        )
+
+    deaths = dictionaries["deaths_today"]
+    if "notable_total" in deaths:
+        death_fields = (
+            "total",
+            "notable_total",
+            "non_notable",
+            "excess",
+            "traffic",
+            "drowning",
+            "suicide",
+            "murder",
+            "workplace",
+            "lightning",
+            "other",
+        )
+        for key in death_fields:
+            value = deaths.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                _fail(
+                    f"state.deaths_today.{key}",
+                    "expected a non-negative integer",
+                )
+        reconciled_pairs = (
+            ("total", "deaths_all_causes_today"),
+            ("notable_total", "notable_deaths_today"),
+            ("non_notable", "other_deaths_today"),
+            ("excess", "excess_deaths_today"),
+        )
+        for death_key, demographic_key in reconciled_pairs:
+            if deaths[death_key] != demographics[demographic_key]:
+                _fail(
+                    f"state.deaths_today.{death_key}",
+                    f"does not match state.demographics.{demographic_key}",
+                )
+        notable_sum = sum(
+            deaths[key]
+            for key in (
+                "traffic",
+                "drowning",
+                "suicide",
+                "murder",
+                "workplace",
+                "lightning",
+                "other",
+            )
+        )
+        if deaths["notable_total"] != notable_sum:
+            _fail(
+                "state.deaths_today.notable_total",
+                "does not match notable death categories",
+            )
+        if deaths["total"] != deaths["notable_total"] + deaths["non_notable"]:
+            _fail(
+                "state.deaths_today.total",
+                "does not match notable and non-notable deaths",
+            )
+        expected_excess = max(
+            0,
+            deaths["notable_total"] - demographics["baseline_deaths_today"],
+        )
+        if deaths["excess"] != expected_excess:
+            _fail(
+                "state.deaths_today.excess",
+                "does not match notable deaths above baseline",
+            )
 
     _validate_nested_numbers(state, "state", set())
     try:
@@ -176,9 +354,12 @@ def _validate_nested_numbers(
             _validate_nested_numbers(nested, f"{path}[{index}]", seen)
 
 
-def migrate_state(raw: Mapping[str, Any], *,
-                  base_seed: int | None = None) -> dict:
-    """Deep-copy a v1 state and add deterministic schema-v2 model state."""
+def _migrate_v1_to_v2(
+    raw: Mapping[str, Any],
+    *,
+    base_seed: int | None = None,
+) -> dict:
+    """Deep-copy a v1 state and add the former schema-v2 model state."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
 
@@ -233,20 +414,93 @@ def migrate_state(raw: Mapping[str, Any], *,
         },
     }
 
-    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["schema_version"] = 2
     migrated["base_seed"] = selected_seed
     migrated["model_state"] = model_state
-    validate_state(migrated)
     return migrated
 
 
-def prepare_state(raw: Mapping[str, Any]) -> dict:
-    """Return an independent, validated schema-v2 state."""
+def _migrate_v2_to_v3(
+    raw: Mapping[str, Any],
+    baseline: PopulationBaseline,
+) -> dict:
+    migrated = copy.deepcopy(dict(raw))
+    current_date = _parse_date(migrated.get("date"))
+    population_number = _finite_number(
+        migrated.get("population"), "state.population"
+    )
+    population = migrated.get("population")
+    if isinstance(population, bool) or not isinstance(population, int):
+        _fail("state.population", "expected a positive integer")
+    if population_number <= 0:
+        _fail("state.population", "expected a positive number")
+    model_state = _require_mapping(migrated, "model_state")
+    selected_seed = migrated.get("base_seed")
+    if isinstance(selected_seed, bool) or not isinstance(selected_seed, int):
+        _fail("state.base_seed", "expected an integer")
+    population_state = initialize_population_state(
+        current_date,
+        population,
+        baseline,
+        base_seed=selected_seed,
+    )
+    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["model_state"] = copy.deepcopy(dict(model_state))
+    migrated["model_state"]["population"] = population_state
+    migrated["demographics"] = population_snapshot(population_state)
+    validate_state(migrated, population_baseline=baseline)
+    return migrated
+
+
+def migrate_state(
+    raw: Mapping[str, Any],
+    *,
+    base_seed: int | None = None,
+    population_baseline: PopulationBaseline | None = None,
+) -> dict:
+    """Migrate a v1 or v2 state to deterministic schema v3."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
-    if "schema_version" not in raw:
-        return migrate_state(raw)
+    baseline = population_baseline or _default_population_baseline()
+    version = raw.get("schema_version")
+    if version is None:
+        v2 = _migrate_v1_to_v2(raw, base_seed=base_seed)
+        return _migrate_v2_to_v3(v2, baseline)
+    if version == 2:
+        if base_seed is not None:
+            v2 = copy.deepcopy(dict(raw))
+            v2["base_seed"] = base_seed
+        else:
+            v2 = raw
+        return _migrate_v2_to_v3(v2, baseline)
+    if version == SCHEMA_VERSION:
+        prepared = copy.deepcopy(dict(raw))
+        validate_state(prepared, population_baseline=baseline)
+        return prepared
+    _fail("state.schema_version", f"expected 2 or {SCHEMA_VERSION}")
+
+
+def prepare_state(
+    raw: Mapping[str, Any],
+    *,
+    population_baseline: PopulationBaseline | None = None,
+) -> dict:
+    """Return an independent, validated schema-v3 state."""
+    if not isinstance(raw, Mapping):
+        _fail("state", "expected a dictionary")
+    baseline = population_baseline or _default_population_baseline()
+    if raw.get("schema_version") in (None, 2):
+        return migrate_state(raw, population_baseline=baseline)
 
     prepared = copy.deepcopy(dict(raw))
-    validate_state(prepared)
+    validate_state(prepared, population_baseline=baseline)
     return prepared
+
+
+@lru_cache(maxsize=1)
+def _default_population_baseline() -> PopulationBaseline:
+    return PopulationBaseline.from_json(
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "population_baseline_2026.json"
+    )

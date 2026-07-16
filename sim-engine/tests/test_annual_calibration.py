@@ -23,6 +23,7 @@ class AnnualCalibrationTests(unittest.TestCase):
         city_temps = defaultdict(list)
         monthly_temps = defaultdict(list)
         monthly_rain = defaultdict(float)
+        population_flows = defaultdict(int)
         releases = 0
         for _ in range(365):
             state = tick(state, resources=resources)
@@ -36,6 +37,16 @@ class AnnualCalibrationTests(unittest.TestCase):
             monthly_rain[month] += katora["rainfall_mm"]
             monthly_temps[month].append(katora["temp_high"])
             releases += int(state["economy"]["cpi"]["is_release_day"])
+            demographics = state["demographics"]
+            for key in (
+                "births_today",
+                "baseline_deaths_today",
+                "returning_diaspora_today",
+                "foreign_immigrants_today",
+                "emigrants_today",
+                "excess_deaths_today",
+            ):
+                population_flows[key] += demographics[key]
             self.assertTrue(1.80 <= state["economy"]["exchange_rate_mvl_per_usd"] <= 2.80)
             json.dumps(state, ensure_ascii=False, allow_nan=False)
         self.assertTrue(2240 <= rainfall["katora"] <= 3360, rainfall)
@@ -58,6 +69,18 @@ class AnnualCalibrationTests(unittest.TestCase):
         self.assertIn(max(means, key=means.get), (12, 1, 2))
         self.assertIn(min(means, key=means.get), (6, 7, 8))
         self.assertEqual(releases, 12)
+        self.assertEqual(
+            dict(population_flows),
+            {
+                "births_today": 27_500,
+                "baseline_deaths_today": 6_600,
+                "returning_diaspora_today": 2_500,
+                "foreign_immigrants_today": 2_200,
+                "emigrants_today": 2_800,
+                "excess_deaths_today": 0,
+            },
+        )
+        self.assertEqual(state["population"], 1_222_800)
 
 
 if __name__ == "__main__":

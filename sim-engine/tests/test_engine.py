@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
-from engine import EngineResources, tick
+from engine import EngineResources, render_brief, tick
+from state import StateValidationError, validate_state
 from weather_model import weather_step as real_weather_step
 
 
@@ -32,7 +33,7 @@ class EngineTests(unittest.TestCase):
 
     def test_tick_uses_all_p0_models(self):
         result = tick(self.v1, resources=self.resources)
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], 3)
         self.assertIn("katora", result["weather"])
         self.assertIn("exchange_rates", result["economy"])
         self.assertIn("commodities", result["economy"])
@@ -40,6 +41,13 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(
             result["economy"]["inflation_pct"],
             result["economy"]["cpi"]["yoy_pct"],
+        )
+        self.assertIn("population", result["model_state"])
+        self.assertEqual(result["population"], result["demographics"]["population"])
+        self.assertEqual(
+            result["population"],
+            sum(result["model_state"]["population"]["cohorts"]["male"])
+            + sum(result["model_state"]["population"]["cohorts"]["female"]),
         )
 
     def test_serialized_resume_matches_continuous_run(self):
@@ -76,9 +84,108 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(captured["state"]["weather"], result["weather"])
         self.assertEqual(captured["weather"], result["weather"])
         self.assertEqual(captured["state"]["economy"], result["economy"])
+        for model in ("weather", "exchange", "commodities", "inflation"):
+            self.assertEqual(
+                captured["state"]["model_state"][model],
+                result["model_state"][model],
+            )
+
+    def test_population_reconciles_notable_deaths_once(self):
+        notable = {
+            "traffic": 2,
+            "drowning": 0,
+            "suicide": 0,
+            "murder": 0,
+            "workplace": 0,
+            "lightning": 0,
+            "other": 0,
+            "total": 2,
+        }
+
+        with patch("engine.events_step", return_value=(notable, [])):
+            result = tick(self.v1, resources=self.resources)
+
+        demographics = result["demographics"]
+        self.assertEqual(result["deaths_today"]["traffic"], 2)
+        self.assertEqual(result["deaths_today"]["notable_total"], 2)
         self.assertEqual(
-            captured["state"]["model_state"], result["model_state"]
+            result["deaths_today"]["total"],
+            demographics["deaths_all_causes_today"],
         )
+        self.assertEqual(
+            result["population"],
+            1_200_000 + demographics["population_change_today"],
+        )
+
+    def test_validation_rejects_mismatched_daily_death_ledger(self):
+        result = tick(self.v1, resources=self.resources)
+        result["deaths_today"]["total"] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.deaths_today\.total",
+        ):
+            validate_state(
+                result,
+                population_baseline=self.resources.population_baseline,
+            )
+
+    def test_population_integration_does_not_perturb_existing_model_streams(self):
+        result = tick(self.v1, resources=self.resources)
+
+        self.assertEqual(result["weather"]["katora"]["condition"], "多云")
+        self.assertEqual(result["weather"]["katora"]["rainfall_mm"], 0.9)
+        self.assertAlmostEqual(
+            result["economy"]["exchange_rate_mvl_per_usd"],
+            2.1923411312677206,
+        )
+        self.assertEqual(result["economy"]["inflation_pct"], 2.379)
+        self.assertEqual(result["deaths_today"]["traffic"], 1)
+
+    def test_render_brief_includes_population_flows(self):
+        result = tick(self.v1, resources=self.resources)
+        demographics = result["demographics"]
+
+        brief = render_brief(result)
+
+        self.assertIn(
+            (
+                f"**人口** {result['population']:,} | "
+                f"出生 {demographics['births_today']} | "
+                f"全因死亡 {demographics['deaths_all_causes_today']} | "
+                f"净迁移 {demographics['net_migration_today']:+d} | "
+                f"净变动 {demographics['population_change_today']:+d}"
+            ),
+            brief,
+        )
+
+    def test_render_brief_separates_notable_and_non_notable_deaths(self):
+        notable = {
+            "traffic": 2,
+            "drowning": 0,
+            "suicide": 0,
+            "murder": 0,
+            "workplace": 0,
+            "lightning": 0,
+            "other": 0,
+            "total": 2,
+        }
+        with patch("engine.events_step", return_value=(notable, [])):
+            result = tick(self.v1, resources=self.resources)
+
+        brief = render_brief(result)
+        deaths = result["deaths_today"]
+
+        self.assertIn(
+            (
+                f"**死亡** 全因 {deaths['total']} 人 | "
+                f"显著 {deaths['notable_total']} 人（traffic=2） | "
+                f"其他疾病/自然 {deaths['non_notable']} 人"
+            ),
+            brief,
+        )
+        self.assertNotIn("notable_total=", brief)
+        self.assertNotIn("non_notable=", brief)
 
     def test_tick_output_is_strict_json(self):
         result = tick(self.v1, resources=self.resources)

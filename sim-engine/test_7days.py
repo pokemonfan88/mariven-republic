@@ -23,7 +23,7 @@ resources = EngineResources.load(Path(__file__).parent / "data")
 start = date.fromisoformat(state["date"])
 
 print("=" * 70)
-print(f"MARIVEN ENGINE v2 - 7-day output")
+print("MARIVEN ENGINE v3 - 7-day output")
 print(f"Start: {start}  Seed: {state['base_seed']}  Population: {state['population']:,}")
 print("=" * 70)
 
@@ -49,6 +49,15 @@ for _ in range(7):
     if cm.get("sugar_usd_lb"):
         print(f"  sugar=${cm['sugar_usd_lb']:.4f}/lb  gold=${cm.get('gold_usd_oz','?'):.0f}/oz  brent=${cm.get('brent_usd_barrel','?'):.1f}")
 
+    demographics = state["demographics"]
+    print(
+        f"  Population: {demographics['population']:,}  "
+        f"births={demographics['births_today']}  "
+        f"all-cause deaths={demographics['deaths_all_causes_today']}  "
+        f"net migration={demographics['net_migration_today']:+d}  "
+        f"change={demographics['population_change_today']:+d}"
+    )
+
     events = state.get("events_today", [])
     if events:
         print(f"  Events ({len(events)}):")
@@ -57,8 +66,26 @@ for _ in range(7):
 
     deaths = state.get("deaths_today", {})
     if deaths.get("total", 0) > 0:
-        parts = [f"{k}={v}" for k, v in deaths.items() if v > 0 and k != "total"]
-        print(f"  Deaths: {deaths['total']} ({', '.join(parts)})")
+        notable_parts = [
+            f"{key}={value}"
+            for key in (
+                "traffic", "drowning", "suicide", "murder",
+                "workplace", "lightning", "other",
+            )
+            if (value := deaths.get(key, 0)) > 0
+        ]
+        details = []
+        if deaths.get("notable_total", 0) > 0:
+            details.append(
+                f"notable {deaths['notable_total']} "
+                f"({', '.join(notable_parts)})"
+            )
+        if deaths.get("non_notable", 0) > 0:
+            details.append(f"other/natural {deaths['non_notable']}")
+        if deaths.get("excess", 0) > 0:
+            details.append(f"excess {deaths['excess']}")
+        suffix = f"; {'; '.join(details)}" if details else ""
+        print(f"  Deaths: {deaths['total']} all-cause{suffix}")
 
 print()
 print("=" * 70)

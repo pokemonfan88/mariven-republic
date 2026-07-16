@@ -112,7 +112,7 @@ def archive_day(
             economy.get("unemployment_pct", 0),
             economy.get("exchange_rate_mvl_per_usd", 0),
             economy.get("fuel_95_price_mvl", 0),
-            deaths.get("total", 0),
+            deaths.get("notable_total", deaths.get("total", 0)),
             deaths.get("traffic", 0),
             deaths.get("drowning", 0),
             deaths.get("suicide", 0),
