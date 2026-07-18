@@ -377,6 +377,20 @@ def validate_baseline(raw: Mapping[str, Any]) -> None:
     )
     if dict(releases) != {"provisional": 4, "revised": 14, "final": 28}:
         _fail("baseline.surveillance.release_offsets_days", "unexpected release policy")
+    _distribution(
+        surveillance.get("reporting_delay_days"),
+        ("0", "1", "2", "3", "4"),
+        "baseline.surveillance.reporting_delay_days",
+    )
+    _distribution(
+        surveillance.get("laboratory_turnaround_days"),
+        ("1", "2", "3", "4"),
+        "baseline.surveillance.laboratory_turnaround_days",
+    )
+    _probability(
+        surveillance.get("laboratory_positive_probability"),
+        "baseline.surveillance.laboratory_positive_probability",
+    )
 
     wmar1 = _mapping(raw.get("wmar1"), "baseline.wmar1")
     for province in ("katora", "western"):
@@ -489,12 +503,25 @@ def initialize_dengue_state(
             for province in PROVINCES
         },
         "surveillance": {
+            "clinical_queue": [],
             "weekly_ledger": weekly_ledger,
             "release_vintages": [],
             "reporting_queue": [],
             "laboratory_queue": [],
+            "daily_records": [],
             "alert_state": {
                 province: "baseline" for province in PROVINCES
+            },
+            "daily_totals": {
+                "date": current_date.isoformat(),
+                "estimated_infections": 0,
+                "symptomatic": 0,
+                "reported": 0,
+                "lab_processed": 0,
+                "confirmed": 0,
+                "severe": 0,
+                "hospitalized": 0,
+                "deaths": 0,
             },
         },
         "cumulative_annual": {

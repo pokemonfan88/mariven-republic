@@ -116,6 +116,16 @@ class DengueBaselineTests(unittest.TestCase):
         ):
             DengueBaseline.from_mapping(raw)
 
+    def test_loader_rejects_bad_reporting_delay_distribution(self):
+        raw = build_baseline()
+        raw["surveillance"]["reporting_delay_days"]["0"] += 0.1
+
+        with self.assertRaisesRegex(
+            DengueDataError,
+            r"^baseline\.surveillance\.reporting_delay_days",
+        ):
+            DengueBaseline.from_mapping(raw)
+
 
 class DengueStateInitializationTests(unittest.TestCase):
     def test_initializer_creates_dated_conserving_state(self):
@@ -163,6 +173,19 @@ class DengueStateInitializationTests(unittest.TestCase):
                 "infectious",
                 "rainfall_queue",
             },
+        )
+        self.assertEqual(
+            {
+                "clinical_queue",
+                "reporting_queue",
+                "laboratory_queue",
+                "daily_records",
+                "weekly_ledger",
+                "release_vintages",
+                "alert_state",
+                "daily_totals",
+            },
+            set(state["surveillance"]),
         )
 
 if __name__ == "__main__":

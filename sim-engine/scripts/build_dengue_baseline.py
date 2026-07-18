@@ -169,6 +169,20 @@ def _surveillance_parameters() -> dict[str, Any]:
             "revised": 14,
             "final": 28,
         },
+        "reporting_delay_days": {
+            "0": 0.15,
+            "1": 0.35,
+            "2": 0.25,
+            "3": 0.15,
+            "4": 0.10,
+        },
+        "laboratory_turnaround_days": {
+            "1": 0.40,
+            "2": 0.35,
+            "3": 0.15,
+            "4": 0.10,
+        },
+        "laboratory_positive_probability": 0.88,
         "minimum_cases": {
             "watch": 5,
             "alert": 10,
