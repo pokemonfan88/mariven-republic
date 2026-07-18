@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
 from engine import EngineResources, render_brief, tick
+from dengue_model import dengue_step as real_dengue_step
 from state import StateValidationError, prepare_state, validate_state
 from weather_model import weather_step as real_weather_step
 
@@ -33,7 +34,7 @@ class EngineTests(unittest.TestCase):
 
     def test_tick_uses_all_p0_models(self):
         result = tick(self.v1, resources=self.resources)
-        self.assertEqual(result["schema_version"], 4)
+        self.assertEqual(result["schema_version"], 5)
         self.assertIn("katora", result["weather"])
         self.assertIn("exchange_rates", result["economy"])
         self.assertIn("commodities", result["economy"])
@@ -44,6 +45,8 @@ class EngineTests(unittest.TestCase):
         )
         self.assertIn("population", result["model_state"])
         self.assertIn("gdp", result["model_state"])
+        self.assertIn("dengue", result["model_state"])
+        self.assertIn("dengue", result["public_health"])
         self.assertIn("gdp", result["economy"])
         self.assertEqual(
             result["economy"]["gdp"]["as_of_date"], result["date"]
@@ -56,6 +59,48 @@ class EngineTests(unittest.TestCase):
             result["population"],
             sum(result["model_state"]["population"]["cohorts"]["male"])
             + sum(result["model_state"]["population"]["cohorts"]["female"]),
+        )
+
+    def test_tick_advances_dengue_and_publishes_public_health(self):
+        result = tick(self.v1, resources=self.resources)
+
+        self.assertEqual(
+            result["model_state"]["dengue"]["last_processed_date"],
+            result["date"],
+        )
+        self.assertIn(
+            "reported_cases",
+            result["public_health"]["dengue"]["national"],
+        )
+        self.assertEqual(
+            result["public_health"]["dengue"]["national"]["population"],
+            result["population"],
+        )
+
+    def test_dengue_death_is_confirmed_by_population_and_reconciled(self):
+        def forced_dengue(*args, **kwargs):
+            flow, state, _, events = real_dengue_step(*args, **kwargs)
+            return flow, state, [{
+                "cause": "dengue",
+                "province": "western",
+                "age_group": "60+",
+                "count": 1,
+            }], events
+
+        with patch("engine.dengue_step", side_effect=forced_dengue):
+            result = tick(self.v1, resources=self.resources)
+
+        self.assertEqual(result["deaths_today"]["dengue"], 1)
+        self.assertEqual(
+            result["demographics"]["cause_specific_deaths_today"][0]
+            ["count"],
+            1,
+        )
+        self.assertEqual(
+            result["model_state"]["dengue"]["cumulative_annual"][
+                "deaths"
+            ],
+            1,
         )
 
     def test_serialized_resume_matches_continuous_run(self):
@@ -91,6 +136,10 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(captured["state"]["date"], result["date"])
         self.assertEqual(captured["state"]["weather"], result["weather"])
         self.assertEqual(captured["weather"], result["weather"])
+        self.assertEqual(
+            captured["state"]["public_health"]["dengue"]["as_of_date"],
+            result["date"],
+        )
         captured_economy = copy.deepcopy(captured["state"]["economy"])
         result_economy = copy.deepcopy(result["economy"])
         captured_gdp = captured_economy.pop("gdp")
@@ -189,6 +238,17 @@ class EngineTests(unittest.TestCase):
         self.assertIn(gdp["current_quarter_nowcast"]["period"], brief)
         self.assertIn(gdp["latest_release"]["period"], brief)
         self.assertIn("年度预测", brief)
+
+    def test_render_brief_includes_dengue_status(self):
+        result = tick(self.v1, resources=self.resources)
+
+        brief = render_brief(result)
+
+        self.assertIn("**登革热**", brief)
+        self.assertIn(
+            result["public_health"]["dengue"]["epidemiological_week"],
+            brief,
+        )
 
     def test_render_brief_handles_benchmark_release_without_yoy_growth(self):
         early = copy.deepcopy(self.v1)

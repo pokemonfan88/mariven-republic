@@ -12,6 +12,12 @@ from typing import Any
 
 from archive import archive_day
 from commodities_model import CommoditySeries, commodities_step
+from dengue_model import (
+    DengueBaseline,
+    dengue_snapshot,
+    dengue_step,
+    reconcile_dengue_population,
+)
 from events_model import events_step
 from exchange_model import FxDataset, exchange_step
 from gdp_model import (
@@ -33,6 +39,7 @@ class EngineResources:
     commodity_series: CommoditySeries
     population_baseline: PopulationBaseline
     gdp_baseline: GdpBaseline
+    dengue_baseline: DengueBaseline
     nation_profile: dict
 
     @classmethod
@@ -54,6 +61,9 @@ class EngineResources:
             gdp_baseline=GdpBaseline.from_json(
                 data_dir / "gdp_baseline_2026.json"
             ),
+            dengue_baseline=DengueBaseline.from_json(
+                data_dir / "dengue_baseline_2026.json"
+            ),
             nation_profile=nation_profile,
         )
 
@@ -69,12 +79,14 @@ def tick(
         previous_state,
         population_baseline=resources.population_baseline,
         gdp_baseline=resources.gdp_baseline,
+        dengue_baseline=resources.dengue_baseline,
     )
     next_state = copy.deepcopy(prepared)
     d = date.fromisoformat(prepared["date"]) + timedelta(days=1)
     base_seed = prepared["base_seed"]
     legacy_random_schema_version = 2
     population_random_schema_version = 3
+    dengue_random_schema_version = 4
     model_state = prepared["model_state"]
 
     def weather_rng(stream_name: str):
@@ -101,6 +113,15 @@ def tick(
             population_random_schema_version,
             d,
             "population",
+            stream_name,
+        )
+
+    def dengue_rng(stream_name: str):
+        return make_rng(
+            base_seed,
+            dengue_random_schema_version,
+            d,
+            "dengue",
             stream_name,
         )
 
@@ -171,6 +192,21 @@ def tick(
     })
     next_state["model_state"] = next_model_state
 
+    daily_dengue, dengue_state, dengue_deaths, dengue_events = dengue_step(
+        d,
+        model_state["dengue"],
+        model_state["population"],
+        weather,
+        resources.nation_profile,
+        resources.dengue_baseline,
+        dengue_rng,
+    )
+    del daily_dengue
+    next_state["model_state"]["dengue"] = dengue_state
+    next_state["public_health"]["dengue"] = dengue_snapshot(
+        d, dengue_state, resources.dengue_baseline
+    )
+
     notable_deaths, general_events = events_step(
         d, next_state, weather, event_rng
     )
@@ -180,11 +216,23 @@ def tick(
         notable_deaths,
         resources.population_baseline,
         population_rng,
+        cause_specific_deaths=dengue_deaths,
     )
     next_state["population"] = demographics["population"]
     next_state["demographics"] = demographics
     next_state["deaths_today"] = deaths
     next_state["model_state"]["population"] = population_state
+    dengue_state = reconcile_dengue_population(
+        dengue_state,
+        model_state["population"],
+        population_state,
+        demographics["cause_specific_deaths_today"],
+        resources.dengue_baseline,
+    )
+    next_state["model_state"]["dengue"] = dengue_state
+    next_state["public_health"]["dengue"] = dengue_snapshot(
+        d, dengue_state, resources.dengue_baseline
+    )
     refreshed_gdp = gdp_snapshot(
         d,
         gdp_state,
@@ -203,13 +251,38 @@ def tick(
         + commodity_events
         + cpi_events
         + gdp_events
+        + dengue_events
         + population_events
         + general_events
     )
+    normalized_events = []
+    seen_events = set()
+    for event in combined_events:
+        normalized = copy.deepcopy(event)
+        normalized.setdefault(
+            "text",
+            "：".join(
+                value
+                for value in (
+                    normalized.get("title"),
+                    normalized.get("description"),
+                )
+                if value
+            ),
+        )
+        key = (
+            normalized.get("type"),
+            normalized.get("severity"),
+            normalized.get("text"),
+        )
+        if key in seen_events:
+            continue
+        seen_events.add(key)
+        normalized_events.append(normalized)
     event_date = d.isoformat()
     next_state["events_today"] = [
         {**copy.deepcopy(event), "_date": event_date}
-        for event in combined_events
+        for event in normalized_events
     ]
     next_state["_meta"]["ticks_run"] = (
         prepared["_meta"].get("ticks_run", 0) + 1
@@ -218,6 +291,7 @@ def tick(
         next_state,
         population_baseline=resources.population_baseline,
         gdp_baseline=resources.gdp_baseline,
+        dengue_baseline=resources.dengue_baseline,
     )
     return next_state
 
@@ -274,6 +348,16 @@ def render_brief(state: Mapping[str, Any]) -> str:
             f"净迁移 {demographics['net_migration_today']:+d} | "
             f"净变动 {demographics['population_change_today']:+d}"
         )
+    dengue = state.get("public_health", {}).get("dengue")
+    if dengue is not None:
+        national = dengue["national"]
+        lines.append(
+            f"**登革热** {dengue['epidemiological_week']} | "
+            f"报告 {national['reported_cases']} 例 | "
+            f"估计感染 {national['estimated_infections']} 例 | "
+            f"住院 {national['hospitalized']} 例 | "
+            f"预警 {national['alert_level']}"
+        )
     if deaths["total"] > 0:
         notable_parts = [
             f"{key}={value}"
@@ -285,6 +369,7 @@ def render_brief(state: Mapping[str, Any]) -> str:
                 "workplace",
                 "lightning",
                 "other",
+                "dengue",
             )
             if (value := deaths.get(key, 0)) > 0
         ]
