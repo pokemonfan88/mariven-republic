@@ -21,12 +21,29 @@ allocate_province_ages = getattr(
     dengue_dynamics, "allocate_province_ages", None
 )
 advance_human_state = getattr(dengue_dynamics, "advance_human_state", None)
+advance_vector_state = getattr(dengue_dynamics, "advance_vector_state", None)
+derive_province_weather = getattr(
+    dengue_dynamics, "derive_province_weather", None
+)
+extrinsic_incubation_days = getattr(
+    dengue_dynamics, "extrinsic_incubation_days", None
+)
 initialize_human_state = getattr(
     dengue_dynamics, "initialize_human_state", None
 )
+initialize_vector_state = getattr(
+    dengue_dynamics, "initialize_vector_state", None
+)
 is_susceptible = getattr(dengue_dynamics, "is_susceptible", None)
+mix_force_of_infection = getattr(
+    dengue_dynamics, "mix_force_of_infection", None
+)
 national_age_totals = getattr(dengue_dynamics, "national_age_totals", None)
 total_humans = getattr(dengue_dynamics, "total_humans", None)
+vector_competence_by_province = getattr(
+    dengue_dynamics, "vector_competence_by_province", None
+)
+vector_suitability = getattr(dengue_dynamics, "vector_suitability", None)
 
 
 class DengueHumanStateTests(unittest.TestCase):
@@ -223,6 +240,130 @@ class DengueHumanStateTests(unittest.TestCase):
                 serotype: 0.0
                 for serotype in ("DENV-1", "DENV-2", "DENV-3", "DENV-4")
             }
+        }
+
+
+class DengueVectorStateTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.baseline = DengueBaseline.from_json(
+            ROOT / "data" / "dengue_baseline_2026.json"
+        )
+
+    def test_module_exposes_vector_functions(self):
+        self.assertIsNotNone(derive_province_weather)
+        self.assertIsNotNone(vector_suitability)
+        self.assertIsNotNone(extrinsic_incubation_days)
+        self.assertIsNotNone(initialize_vector_state)
+        self.assertIsNotNone(advance_vector_state)
+        self.assertIsNotNone(mix_force_of_infection)
+        self.assertIsNotNone(vector_competence_by_province)
+
+    def test_highlands_weather_uses_declared_modifiers(self):
+        self.assertIsNotNone(derive_province_weather)
+        derived = derive_province_weather(self._weather(rainfall=20.0), self.baseline)
+
+        self.assertEqual(
+            derived["central_highlands"]["temp_mean_c"],
+            derived["katora"]["temp_mean_c"] - 4.0,
+        )
+        self.assertEqual(derived["central_highlands"]["rainfall_mm"], 25.0)
+        self.assertEqual(derived["eastern_coast"]["rainfall_mm"], 23.0)
+
+    def test_warmer_temperature_shortens_vector_incubation(self):
+        self.assertIsNotNone(extrinsic_incubation_days)
+        self.assertGreater(
+            extrinsic_incubation_days(22.0),
+            extrinsic_incubation_days(30.0),
+        )
+        self.assertEqual(extrinsic_incubation_days(40.0), 5)
+        self.assertEqual(extrinsic_incubation_days(10.0), 14)
+
+    def test_rainfall_updates_larvae_before_adult_emergence(self):
+        self.assertIsNotNone(initialize_vector_state)
+        vectors = initialize_vector_state(self.baseline)
+        dry_weather = derive_province_weather(
+            self._weather(rainfall=0.0), self.baseline
+        )
+        wet_weather = derive_province_weather(
+            self._weather(rainfall=40.0), self.baseline
+        )
+        human_force = self._zero_human_infectiousness()
+        interventions = self._interventions()
+
+        dry, _ = advance_vector_state(
+            vectors, dry_weather, human_force, interventions, self.baseline
+        )
+        wet, _ = advance_vector_state(
+            vectors, wet_weather, human_force, interventions, self.baseline
+        )
+
+        self.assertEqual(dry["katora"]["adult_total"], wet["katora"]["adult_total"])
+        self.assertGreater(wet["katora"]["larval_pressure"], dry["katora"]["larval_pressure"])
+        self.assertEqual(wet["katora"]["rainfall_queue"][-1], 40.0)
+
+    def test_wmar1_reduces_only_pilot_province_competence(self):
+        self.assertIsNotNone(vector_competence_by_province)
+        competence = vector_competence_by_province(self.baseline)
+
+        self.assertLess(competence["katora"], 1.0)
+        self.assertLess(competence["western"], 1.0)
+        self.assertEqual(competence["timo"], 1.0)
+        self.assertEqual(competence["ruwa"], 1.0)
+
+    def test_mobility_mixes_force_without_changing_source(self):
+        self.assertIsNotNone(mix_force_of_infection)
+        local = {
+            province: {serotype: 0.0 for serotype in self.baseline.serotypes}
+            for province in self.baseline.province_populations
+        }
+        local["katora"]["DENV-1"] = 1.0
+        original = copy.deepcopy(local)
+
+        mixed = mix_force_of_infection(local, self.baseline.raw["mobility"])
+
+        self.assertEqual(local, original)
+        self.assertAlmostEqual(mixed["western"]["DENV-1"], 0.035)
+        self.assertAlmostEqual(mixed["katora"]["DENV-1"], 0.930)
+
+    @staticmethod
+    def _weather(*, rainfall):
+        city = {
+            "temp_high": 30.0,
+            "temp_low": 22.0,
+            "humidity": 70.0,
+            "rainfall_mm": rainfall,
+        }
+        return {
+            **{
+                key: dict(city)
+                for key in ("katora", "makadi_port", "timo", "pela", "ruwa")
+            },
+            "temp_high": 30.0,
+            "temp_low": 22.0,
+            "humidity": 70.0,
+            "rainfall_mm": rainfall,
+            "rainfall_14d_mm": rainfall,
+            "soil_moisture_index": 0.5,
+        }
+
+    def _zero_human_infectiousness(self):
+        return {
+            province: {serotype: 0.0 for serotype in self.baseline.serotypes}
+            for province in self.baseline.province_populations
+        }
+
+    def _interventions(self):
+        empty = {
+            "pilot_share": 0.0,
+            "community_coverage": 0.0,
+            "field_effectiveness": 0.0,
+        }
+        return {
+            province: copy.deepcopy(
+                self.baseline.raw["wmar1"].get(province, empty)
+            )
+            for province in self.baseline.province_populations
         }
 
 

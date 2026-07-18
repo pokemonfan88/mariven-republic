@@ -431,6 +431,7 @@ def initialize_dengue_state(
     from dengue_dynamics import (
         allocate_province_ages,
         initialize_human_state,
+        initialize_vector_state,
         national_age_totals,
     )
 
@@ -453,6 +454,7 @@ def initialize_dengue_state(
     human_state = initialize_human_state(
         province_ages, baseline, rng_factory
     )
+    vector_state = initialize_vector_state(baseline)
     through_date = min(current_date, date(2026, 8, 10))
     weekly_ledger = [
         copy.deepcopy(row)
@@ -472,7 +474,7 @@ def initialize_dengue_state(
         "provinces": {
             province: {
                 "human": human_state[province],
-                "vector": {},
+                "vector": vector_state[province],
                 "interventions": copy.deepcopy(
                     baseline.raw["wmar1"].get(
                         province,

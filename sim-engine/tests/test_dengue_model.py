@@ -153,6 +153,17 @@ class DengueStateInitializationTests(unittest.TestCase):
             ),
             1_200_000,
         )
+        self.assertEqual(
+            set(state["provinces"]["katora"]["vector"]),
+            {
+                "larval_pressure",
+                "adult_total",
+                "susceptible",
+                "exposed",
+                "infectious",
+                "rainfall_queue",
+            },
+        )
 
 if __name__ == "__main__":
     unittest.main()

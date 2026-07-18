@@ -631,3 +631,357 @@ def advance_human_state(
     if total_humans(next_state) != starting_total:
         raise DengueDataError("human: population conservation failed")
     return next_state, flows
+
+
+def derive_province_weather(
+    weather: Mapping[str, Any],
+    baseline: DengueBaseline,
+) -> dict[str, dict[str, float | str]]:
+    """Map the five-city weather output to seven dengue provinces."""
+    result: dict[str, dict[str, float | str]] = {}
+    mapping = baseline.raw["weather_mapping"]
+    for province in PROVINCES:
+        rule = mapping[province]
+        source_key = rule["source"]
+        source = weather.get(source_key)
+        quality = "city"
+        if not isinstance(source, Mapping):
+            source = weather
+            quality = "national_fallback"
+        values: dict[str, float] = {}
+        for key in ("temp_high", "temp_low", "humidity", "rainfall_mm"):
+            raw_value = source.get(key)
+            if (
+                isinstance(raw_value, bool)
+                or not isinstance(raw_value, (int, float))
+                or not math.isfinite(float(raw_value))
+            ):
+                raise DengueDataError(
+                    f"weather.{source_key}.{key}: expected a finite number"
+                )
+            values[key] = float(raw_value)
+        rainfall_14d = weather.get(
+            "rainfall_14d_mm", values["rainfall_mm"] * 7.0
+        )
+        soil_moisture = weather.get("soil_moisture_index", 0.5)
+        for key, value in (
+            ("rainfall_14d_mm", rainfall_14d),
+            ("soil_moisture_index", soil_moisture),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+            ):
+                raise DengueDataError(
+                    f"weather.{key}: expected a finite number"
+                )
+        temperature_offset = float(rule["temp_offset_c"])
+        rain_scale = float(rule["rain_scale"])
+        humidity = min(
+            100.0,
+            max(0.0, values["humidity"] + float(rule["humidity_offset_pct"])),
+        )
+        result[province] = {
+            "temp_high_c": values["temp_high"] + temperature_offset,
+            "temp_low_c": values["temp_low"] + temperature_offset,
+            "temp_mean_c": (
+                (values["temp_high"] + values["temp_low"]) / 2.0
+                + temperature_offset
+            ),
+            "humidity_pct": humidity,
+            "rainfall_mm": max(0.0, values["rainfall_mm"] * rain_scale),
+            "rainfall_14d_mm": max(0.0, float(rainfall_14d) * rain_scale),
+            "soil_moisture_index": min(1.0, max(0.0, float(soil_moisture))),
+            "data_quality": quality,
+        }
+    return result
+
+
+def vector_suitability(
+    temp_mean_c: float,
+    humidity_pct: float,
+    rainfall_14d_mm: float,
+) -> float:
+    """Return a bounded environmental mosquito suitability index."""
+    values = (temp_mean_c, humidity_pct, rainfall_14d_mm)
+    if any(not math.isfinite(float(value)) for value in values):
+        raise DengueDataError("vector.weather: expected finite values")
+    temperature = max(0.0, 1.0 - ((temp_mean_c - 28.0) / 12.0) ** 2)
+    moisture = min(
+        1.5,
+        max(0.2, 0.45 + humidity_pct / 200.0 + rainfall_14d_mm / 350.0),
+    )
+    return min(1.5, max(0.0, temperature * moisture))
+
+
+def extrinsic_incubation_days(temp_mean_c: float) -> int:
+    """Return temperature-dependent mosquito EIP bounded to 5–14 days."""
+    if not math.isfinite(float(temp_mean_c)):
+        raise DengueDataError("vector.temp_mean_c: expected a finite number")
+    return min(14, max(5, round(14.0 - (temp_mean_c - 20.0) * 0.75)))
+
+
+def _zero_serotypes() -> dict[str, float]:
+    return {serotype: 0.0 for serotype in SEROTYPES}
+
+
+def initialize_vector_state(
+    baseline: DengueBaseline,
+) -> dict[str, dict[str, Any]]:
+    """Create normalized mosquito SEI stocks for every province."""
+    adult_total = float(baseline.raw["vector"]["initial_adult_index"])
+    infectious_total = adult_total * 0.004
+    serotype_prior = baseline.raw["transmission"]["serotype_prior"]
+    maximum_eip = baseline.raw["transmission"]["vector_eip_days"]["maximum"]
+    rainfall_days = baseline.raw["vector"]["rainfall_lag_days"]
+    return {
+        province: {
+            "larval_pressure": float(
+                baseline.raw["vector"]["initial_larval_pressure"]
+            ),
+            "adult_total": adult_total,
+            "susceptible": adult_total - infectious_total,
+            "exposed": {
+                serotype: [0.0] * maximum_eip
+                for serotype in SEROTYPES
+            },
+            "infectious": {
+                serotype: infectious_total * serotype_prior[serotype]
+                for serotype in SEROTYPES
+            },
+            "rainfall_queue": [0.0] * rainfall_days,
+        }
+        for province in PROVINCES
+    }
+
+
+def _residual_competence(intervention: Mapping[str, Any]) -> float:
+    affected = 1.0
+    for key in ("pilot_share", "community_coverage", "field_effectiveness"):
+        value = intervention.get(key, 0.0)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or not 0.0 <= float(value) <= 1.0
+        ):
+            raise DengueDataError(
+                f"interventions.{key}: expected a probability"
+            )
+        affected *= float(value)
+    return 1.0 - affected
+
+
+def vector_competence_by_province(
+    baseline: DengueBaseline,
+) -> dict[str, float]:
+    """Return province-effective competence after limited wMar-1 pilots."""
+    empty = {
+        "pilot_share": 0.0,
+        "community_coverage": 0.0,
+        "field_effectiveness": 0.0,
+    }
+    return {
+        province: _residual_competence(
+            baseline.raw["wmar1"].get(province, empty)
+        )
+        for province in PROVINCES
+    }
+
+
+def infectiousness_by_province(
+    human_state: Mapping[str, Mapping[str, Any]],
+    baseline: DengueBaseline,
+) -> dict[str, dict[str, float]]:
+    """Return infectious-human fractions by province and serotype."""
+    del baseline
+    result: dict[str, dict[str, float]] = {}
+    for province, state in human_state.items():
+        population = sum(state["population_by_age"].values())
+        by_serotype = _zero_serotypes()
+        for cohort in state["infectious"]:
+            by_serotype[cohort["serotype"]] += cohort["count"]
+        result[province] = {
+            serotype: 0.0 if population == 0 else count / population
+            for serotype, count in by_serotype.items()
+        }
+    return result
+
+
+def advance_vector_state(
+    previous: Mapping[str, Mapping[str, Any]],
+    province_weather: Mapping[str, Mapping[str, Any]],
+    human_infectiousness: Mapping[str, Mapping[str, float]],
+    interventions: Mapping[str, Mapping[str, Any]],
+    baseline: DengueBaseline,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Advance normalized mosquito SEI stocks with delayed rainfall."""
+    next_state = copy.deepcopy(dict(previous))
+    flows: dict[str, Any] = {
+        "local_force": {},
+        "new_vector_infections": {},
+        "suitability": {},
+    }
+    vector_parameters = baseline.raw["vector"]
+    transmission = baseline.raw["transmission"]
+    mean_lifetime = float(vector_parameters["adult_mean_lifetime_days"])
+    flush_threshold = float(vector_parameters["flush_threshold_mm"])
+    maximum_eip = int(transmission["vector_eip_days"]["maximum"])
+
+    for province in previous:
+        state = next_state[province]
+        weather = province_weather.get(province)
+        if not isinstance(weather, Mapping):
+            raise DengueDataError(
+                f"province_weather.{province}: expected a dictionary"
+            )
+        suitability = vector_suitability(
+            float(weather["temp_mean_c"]),
+            float(weather["humidity_pct"]),
+            float(weather["rainfall_14d_mm"]),
+        )
+        current_rain = float(weather["rainfall_mm"])
+        queue = list(state["rainfall_queue"])
+        if len(queue) != vector_parameters["rainfall_lag_days"]:
+            raise DengueDataError(
+                f"vector.{province}.rainfall_queue: unexpected length"
+            )
+        prior_rainfall = sum(queue)
+        delayed_rain = queue.pop(0)
+        queue.append(current_rain)
+        state["rainfall_queue"] = queue
+
+        previous_larvae = float(state["larval_pressure"])
+        rain_gain = min(1.25, current_rain / 40.0)
+        flushing = (
+            min(0.65, (current_rain - flush_threshold) / flush_threshold)
+            if current_rain > flush_threshold
+            else 0.0
+        )
+        state["larval_pressure"] = max(
+            0.02,
+            previous_larvae * (0.88 - flushing)
+            + suitability * (0.06 + 0.16 * rain_gain),
+        )
+
+        mortality = min(
+            0.22,
+            max(
+                0.04,
+                (1.0 / mean_lifetime)
+                * (1.0 + abs(float(weather["temp_mean_c"]) - 28.0) / 18.0),
+            ),
+        )
+        survival = 1.0 - mortality
+        maturation_suitability = vector_suitability(
+            float(weather["temp_mean_c"]),
+            float(weather["humidity_pct"]),
+            prior_rainfall,
+        )
+        delayed_emergence = previous_larvae * maturation_suitability * (
+            0.055 + min(0.10, delayed_rain / 400.0)
+        )
+
+        susceptible = float(state["susceptible"]) * survival + delayed_emergence
+        infectious = {
+            serotype: float(state["infectious"][serotype]) * survival
+            for serotype in SEROTYPES
+        }
+        exposed: dict[str, list[float]] = {}
+        for serotype in SEROTYPES:
+            old_queue = list(state["exposed"][serotype])
+            if len(old_queue) != maximum_eip:
+                raise DengueDataError(
+                    f"vector.{province}.exposed.{serotype}: unexpected length"
+                )
+            mature = old_queue.pop(0) * survival
+            exposed[serotype] = [value * survival for value in old_queue] + [0.0]
+            infectious[serotype] += mature
+
+        human_force = human_infectiousness.get(province, {})
+        hazards = [
+            max(0.0, float(human_force.get(serotype, 0.0)))
+            for serotype in SEROTYPES
+        ]
+        total_hazard = (
+            transmission["base_biting_rate"]
+            * transmission["human_to_mosquito"]
+            * sum(hazards)
+        )
+        newly_infected = susceptible * (1.0 - math.exp(-total_hazard))
+        if newly_infected > 0 and sum(hazards) > 0:
+            susceptible -= newly_infected
+            eip_days = extrinsic_incubation_days(
+                float(weather["temp_mean_c"])
+            )
+            insertion_index = min(maximum_eip - 1, eip_days - 1)
+            for serotype, hazard in zip(SEROTYPES, hazards, strict=True):
+                exposed[serotype][insertion_index] += (
+                    newly_infected * hazard / sum(hazards)
+                )
+
+        state["susceptible"] = susceptible
+        state["exposed"] = exposed
+        state["infectious"] = infectious
+        adult_total = (
+            susceptible
+            + sum(infectious.values())
+            + sum(sum(values) for values in exposed.values())
+        )
+        state["adult_total"] = adult_total
+        competence = _residual_competence(interventions.get(province, {}))
+        local_force = {
+            serotype: (
+                0.0
+                if adult_total <= 0
+                else transmission["base_biting_rate"]
+                * transmission["mosquito_to_human"]
+                * infectious[serotype]
+                / adult_total
+                * competence
+            )
+            for serotype in SEROTYPES
+        }
+        all_values = [
+            state["larval_pressure"],
+            adult_total,
+            susceptible,
+            *infectious.values(),
+            *(value for values in exposed.values() for value in values),
+            *local_force.values(),
+        ]
+        if any(not math.isfinite(value) or value < 0 for value in all_values):
+            raise DengueDataError(
+                f"vector.{province}: expected finite non-negative stocks"
+            )
+        flows["local_force"][province] = local_force
+        flows["new_vector_infections"][province] = newly_infected
+        flows["suitability"][province] = suitability
+    return next_state, flows
+
+
+def mix_force_of_infection(
+    local_force: Mapping[str, Mapping[str, float]],
+    mobility: Mapping[str, Mapping[str, float]],
+) -> dict[str, dict[str, float]]:
+    """Mix province infection pressure without moving population stocks."""
+    result: dict[str, dict[str, float]] = {}
+    for resident in PROVINCES:
+        if resident not in mobility:
+            raise DengueDataError(
+                f"mobility.{resident}: expected a matrix row"
+            )
+        result[resident] = {}
+        for serotype in SEROTYPES:
+            value = sum(
+                float(mobility[resident][source])
+                * float(local_force[source][serotype])
+                for source in PROVINCES
+            )
+            if not math.isfinite(value) or value < 0:
+                raise DengueDataError(
+                    f"force.{resident}.{serotype}: invalid mixed force"
+                )
+            result[resident][serotype] = value
+    return result
