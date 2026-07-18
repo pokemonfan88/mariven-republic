@@ -1,7 +1,9 @@
 import json
 import math
+import random
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 
 
@@ -26,6 +28,9 @@ except ImportError:
 
 DengueBaseline = getattr(dengue_model, "DengueBaseline", None)
 DengueDataError = getattr(dengue_model, "DengueDataError", None)
+initialize_dengue_state = getattr(
+    dengue_model, "initialize_dengue_state", None
+)
 
 
 class DengueBaselineBuilderTests(unittest.TestCase):
@@ -111,6 +116,43 @@ class DengueBaselineTests(unittest.TestCase):
         ):
             DengueBaseline.from_mapping(raw)
 
+
+class DengueStateInitializationTests(unittest.TestCase):
+    def test_initializer_creates_dated_conserving_state(self):
+        self.assertIsNotNone(initialize_dengue_state)
+        from population_model import (
+            PopulationBaseline,
+            initialize_population_state,
+        )
+
+        population_baseline = PopulationBaseline.from_json(
+            ROOT / "data" / "population_baseline_2026.json"
+        )
+        population_state = initialize_population_state(
+            date(2026, 8, 11),
+            1_200_000,
+            population_baseline,
+            base_seed=42,
+        )
+        baseline = DengueBaseline.from_json(BASELINE_PATH)
+
+        state = initialize_dengue_state(
+            date(2026, 8, 11),
+            population_state,
+            baseline,
+            lambda name: random.Random(f"init:{name}"),
+            "anchor_snapshot",
+        )
+
+        self.assertEqual(state["last_processed_date"], "2026-08-11")
+        self.assertEqual(state["initialization_source"], "anchor_snapshot")
+        self.assertEqual(
+            sum(
+                sum(province["human"]["population_by_age"].values())
+                for province in state["provinces"].values()
+            ),
+            1_200_000,
+        )
 
 if __name__ == "__main__":
     unittest.main()

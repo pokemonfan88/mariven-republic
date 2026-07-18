@@ -5,7 +5,9 @@ from __future__ import annotations
 import copy
 import json
 import math
+import random
 from collections.abc import Mapping, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from numbers import Real
@@ -231,6 +233,22 @@ def validate_baseline(raw: Mapping[str, Any]) -> None:
                 "expected a positive multiplier",
             )
 
+    infection_counts = _mapping(
+        immunity.get("infection_count_given_ever"),
+        "baseline.immunity.infection_count_given_ever",
+    )
+    _exact_keys(
+        infection_counts,
+        AGE_GROUPS,
+        "baseline.immunity.infection_count_given_ever",
+    )
+    for age in AGE_GROUPS:
+        _distribution(
+            infection_counts[age],
+            ("1", "2", "3", "4"),
+            f"baseline.immunity.infection_count_given_ever.{age}",
+        )
+
     transmission = _mapping(
         raw.get("transmission"), "baseline.transmission"
     )
@@ -400,3 +418,91 @@ class DengueBaseline:
             serotypes=tuple(copied["serotypes"]),
             province_populations=dict(copied["provinces"]),
         )
+
+
+def initialize_dengue_state(
+    current_date: date,
+    population_state: Mapping[str, Any],
+    baseline: DengueBaseline,
+    rng_factory: Callable[[str], random.Random],
+    initialization_source: str,
+) -> dict[str, Any]:
+    """Create a dated dengue state reconciled to national age cohorts."""
+    from dengue_dynamics import (
+        allocate_province_ages,
+        initialize_human_state,
+        national_age_totals,
+    )
+
+    allowed_sources = {
+        "calibration_reconstruction",
+        "anchor_snapshot",
+        "legacy_replay",
+        "native_v5",
+    }
+    if initialization_source not in allowed_sources:
+        _fail(
+            "state.model_state.dengue.initialization_source",
+            f"expected one of {sorted(allowed_sources)}",
+        )
+    if current_date < date(2026, 1, 1):
+        _fail("state.date", "dengue baseline begins on 2026-01-01")
+
+    age_totals = national_age_totals(population_state)
+    province_ages = allocate_province_ages(age_totals, baseline)
+    human_state = initialize_human_state(
+        province_ages, baseline, rng_factory
+    )
+    through_date = min(current_date, date(2026, 8, 10))
+    weekly_ledger = [
+        copy.deepcopy(row)
+        for row in baseline.raw["historical_2026"]["weekly_ledger"]
+        if date.fromisoformat(row["week_end"]) <= through_date
+    ]
+    cumulative_reported = sum(
+        row["reported_national"] for row in weekly_ledger
+    )
+
+    return {
+        "version": "mariven-dengue-state-v1",
+        "baseline_version": baseline.version,
+        "random_schema_version": 4,
+        "last_processed_date": current_date.isoformat(),
+        "initialization_source": initialization_source,
+        "provinces": {
+            province: {
+                "human": human_state[province],
+                "vector": {},
+                "interventions": copy.deepcopy(
+                    baseline.raw["wmar1"].get(
+                        province,
+                        {
+                            "pilot_share": 0.0,
+                            "community_coverage": 0.0,
+                            "field_effectiveness": 0.0,
+                        },
+                    )
+                ),
+            }
+            for province in PROVINCES
+        },
+        "surveillance": {
+            "weekly_ledger": weekly_ledger,
+            "release_vintages": [],
+            "reporting_queue": [],
+            "laboratory_queue": [],
+            "alert_state": {
+                province: "baseline" for province in PROVINCES
+            },
+        },
+        "cumulative_annual": {
+            "year": current_date.year,
+            "estimated_infections": 0,
+            "reported": cumulative_reported,
+            "confirmed": 0,
+            "severe": 0,
+            "hospitalized": 0,
+            "deaths": 0,
+        },
+        "data_quality": [],
+    }
