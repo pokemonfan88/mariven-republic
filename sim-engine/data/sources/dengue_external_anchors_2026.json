@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "version": "mariven-dengue-sources-2026-v1",
+    "description": "登革热模型的外部事实、区域合理性参考和马里文项目设定来源。现实区域数据不得直接作为马里文观测值。",
+    "accessed_on": "2026-07-19"
+  },
+  "sources": {
+    "who_dengue_fact_sheet": {
+      "class": "official_external",
+      "organization": "World Health Organization",
+      "title": "Dengue and severe dengue",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+      "use": [
+        "human_incubation",
+        "symptom_duration",
+        "severe_dengue_context"
+      ],
+      "extracted": {
+        "human_incubation_days_min": 4,
+        "human_incubation_days_max": 10,
+        "symptom_duration_days_min": 2,
+        "symptom_duration_days_max": 7
+      },
+      "limitations": "Provides disease-level guidance, not Mariven-specific transition probabilities."
+    },
+    "who_dengue_outbreak_toolbox": {
+      "class": "official_external",
+      "organization": "World Health Organization",
+      "title": "Dengue outbreak toolbox",
+      "url": "https://www.who.int/emergencies/outbreak-toolkit/disease-outbreak-toolboxes/dengue-outbreak-toolbox",
+      "use": [
+        "case_definitions",
+        "outbreak_investigation_framework"
+      ],
+      "limitations": "Case definitions require local surveillance implementation and do not define Mariven alert thresholds."
+    },
+    "who_wpro_dengue_surveillance": {
+      "class": "official_external",
+      "organization": "WHO Regional Office for the Western Pacific",
+      "title": "Dengue surveillance",
+      "url": "https://www.who.int/westernpacific/wpro-emergencies/surveillance/dengue",
+      "use": [
+        "regional_surveillance_context",
+        "reporting_caveats"
+      ],
+      "limitations": "Country definitions and reporting practices differ; regional counts are not copied into Mariven."
+    },
+    "who_wpro_situation_update_749": {
+      "class": "official_external",
+      "organization": "WHO Regional Office for the Western Pacific",
+      "title": "Dengue Situation Update #749",
+      "published_on": "2026-07-09",
+      "url": "https://www.who.int/westernpacific/publications/m/item/dengue-situation-update---749--9-july-2026",
+      "use": [
+        "regional_plausibility_only"
+      ],
+      "limitations": "Used to check regional plausibility as of the design date; it is not a runtime data feed."
+    },
+    "fiji_2025_outbreak_end": {
+      "class": "official_external",
+      "organization": "Fiji Ministry of Health and Medical Services",
+      "title": "Ministry Declares the End of the Dengue Fever Outbreak for the Western and Central Division",
+      "published_on": "2025-08-12",
+      "url": "https://www.health.gov.fj/wp-content/uploads/2025/08/Press-Release-101-Ministry-Declares-the-End-of-the-Dengue-Fever-Outbreak-for-the-Western-and-Central-Division.pdf",
+      "use": [
+        "south_pacific_outbreak_scale_check",
+        "spatial_heterogeneity_check"
+      ],
+      "extracted": {
+        "reported_cases_2025_jan_1_to_jul_27": 11599
+      },
+      "limitations": "Fiji totals are not population-scaled or copied into Mariven."
+    },
+    "mariven_administrative_climate_healthcare": {
+      "class": "project_canon",
+      "organization": "Mariven project",
+      "files": [
+        "sim-engine/worldbuilding/06-administrative.md",
+        "sim-engine/worldbuilding/14-geography-climate.md",
+        "sim-engine/worldbuilding/19-healthcare.md",
+        "sim-engine/worldbuilding/34-research-science.md"
+      ],
+      "use": [
+        "province_populations",
+        "wet_and_dry_seasons",
+        "healthcare_capacity",
+        "surveillance_institutions"
+      ]
+    },
+    "mariven_wmar1": {
+      "class": "fictional_intervention",
+      "organization": "Mariven project",
+      "files": [
+        "sim-engine/worldbuilding/lancet-wmar1-2024.md",
+        "sim-engine/worldbuilding/lancet-wmar1-2024-zh.md"
+      ],
+      "use": [
+        "limited_pilot_intervention"
+      ],
+      "limitations": "wMar-1 is fictional project canon. Laboratory and semi-field efficacy claims are not treated as real evidence or direct province-level effectiveness."
+    }
+  }
+}

@@ -1,0 +1,834 @@
+{
+  "version": "mariven-dengue-2026-v1",
+  "anchor_date": "2026-08-11",
+  "metadata": {
+    "generated_on": "2026-07-19",
+    "accessed_on": "2026-07-19",
+    "source_extract": "sources/dengue_external_anchors_2026.json",
+    "source_classes": {
+      "natural_history": "official_external",
+      "regional_context": "official_external",
+      "province_and_health_system": "project_canon",
+      "mariven_parameters": "calibration_assumption",
+      "wmar1": "fictional_intervention"
+    }
+  },
+  "age_groups": [
+    "0-4",
+    "5-14",
+    "15-29",
+    "30-59",
+    "60+"
+  ],
+  "serotypes": [
+    "DENV-1",
+    "DENV-2",
+    "DENV-3",
+    "DENV-4"
+  ],
+  "provinces": {
+    "katora": 470000,
+    "western": 260000,
+    "central_highlands": 110000,
+    "eastern_coast": 78000,
+    "timo": 145000,
+    "pela": 82000,
+    "ruwa": 55000
+  },
+  "historical_2026": {
+    "through_date": "2026-08-10",
+    "reported_by_province": {
+      "katora": 520,
+      "western": 340,
+      "central_highlands": 70,
+      "eastern_coast": 60,
+      "timo": 110,
+      "pela": 95,
+      "ruwa": 45
+    },
+    "weekly_ledger": [
+      {
+        "week_start": "2025-12-29",
+        "week_end": "2026-01-04",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-01-05",
+        "week_end": "2026-01-11",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-01-12",
+        "week_end": "2026-01-18",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-01-19",
+        "week_end": "2026-01-25",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-01-26",
+        "week_end": "2026-02-01",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-02-02",
+        "week_end": "2026-02-08",
+        "reported_by_province": {
+          "katora": 23,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 55,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-02-09",
+        "week_end": "2026-02-15",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 54,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-02-16",
+        "week_end": "2026-02-22",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 54,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-02-23",
+        "week_end": "2026-03-01",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 54,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-03-02",
+        "week_end": "2026-03-08",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 54,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-03-09",
+        "week_end": "2026-03-15",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 3,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 54,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-03-16",
+        "week_end": "2026-03-22",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-03-23",
+        "week_end": "2026-03-29",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-03-30",
+        "week_end": "2026-04-05",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-04-06",
+        "week_end": "2026-04-12",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-04-13",
+        "week_end": "2026-04-19",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-04-20",
+        "week_end": "2026-04-26",
+        "reported_by_province": {
+          "katora": 22,
+          "western": 15,
+          "central_highlands": 3,
+          "eastern_coast": 2,
+          "timo": 5,
+          "pela": 4,
+          "ruwa": 2
+        },
+        "reported_national": 53,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-04-27",
+        "week_end": "2026-05-03",
+        "reported_by_province": {
+          "katora": 14,
+          "western": 9,
+          "central_highlands": 2,
+          "eastern_coast": 1,
+          "timo": 3,
+          "pela": 3,
+          "ruwa": 1
+        },
+        "reported_national": 33,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-05-04",
+        "week_end": "2026-05-10",
+        "reported_by_province": {
+          "katora": 14,
+          "western": 9,
+          "central_highlands": 2,
+          "eastern_coast": 1,
+          "timo": 3,
+          "pela": 3,
+          "ruwa": 1
+        },
+        "reported_national": 33,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-05-11",
+        "week_end": "2026-05-17",
+        "reported_by_province": {
+          "katora": 14,
+          "western": 9,
+          "central_highlands": 2,
+          "eastern_coast": 1,
+          "timo": 3,
+          "pela": 3,
+          "ruwa": 1
+        },
+        "reported_national": 33,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-05-18",
+        "week_end": "2026-05-24",
+        "reported_by_province": {
+          "katora": 14,
+          "western": 9,
+          "central_highlands": 2,
+          "eastern_coast": 1,
+          "timo": 3,
+          "pela": 3,
+          "ruwa": 1
+        },
+        "reported_national": 33,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-05-25",
+        "week_end": "2026-05-31",
+        "reported_by_province": {
+          "katora": 14,
+          "western": 9,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 3,
+          "pela": 3,
+          "ruwa": 1
+        },
+        "reported_national": 32,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-06-01",
+        "week_end": "2026-06-07",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 2,
+          "ruwa": 1
+        },
+        "reported_national": 17,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-06-08",
+        "week_end": "2026-06-14",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 2,
+          "ruwa": 1
+        },
+        "reported_national": 17,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-06-15",
+        "week_end": "2026-06-21",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 1
+        },
+        "reported_national": 16,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-06-22",
+        "week_end": "2026-06-28",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 1
+        },
+        "reported_national": 16,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-06-29",
+        "week_end": "2026-07-05",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 1
+        },
+        "reported_national": 16,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-07-06",
+        "week_end": "2026-07-12",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 1
+        },
+        "reported_national": 16,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-07-13",
+        "week_end": "2026-07-19",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 0
+        },
+        "reported_national": 15,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-07-20",
+        "week_end": "2026-07-26",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 0
+        },
+        "reported_national": 15,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-07-27",
+        "week_end": "2026-08-02",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 0
+        },
+        "reported_national": 15,
+        "source": "calibration_history",
+        "release_status": "final"
+      },
+      {
+        "week_start": "2026-08-03",
+        "week_end": "2026-08-09",
+        "reported_by_province": {
+          "katora": 7,
+          "western": 4,
+          "central_highlands": 1,
+          "eastern_coast": 1,
+          "timo": 1,
+          "pela": 1,
+          "ruwa": 0
+        },
+        "reported_national": 15,
+        "source": "calibration_history",
+        "release_status": "final"
+      }
+    ]
+  },
+  "immunity": {
+    "cross_protection_days": 180,
+    "cross_protection_residual_susceptibility": 0.1,
+    "ever_infected_prior": {
+      "0-4": 0.08,
+      "5-14": 0.3,
+      "15-29": 0.55,
+      "30-59": 0.68,
+      "60+": 0.75
+    },
+    "province_multipliers": {
+      "katora": 1.1,
+      "western": 1.08,
+      "central_highlands": 0.8,
+      "eastern_coast": 0.9,
+      "timo": 0.85,
+      "pela": 1.0,
+      "ruwa": 0.75
+    }
+  },
+  "transmission": {
+    "human_incubation_days": {
+      "4": 0.03,
+      "5": 0.1,
+      "6": 0.22,
+      "7": 0.28,
+      "8": 0.2,
+      "9": 0.11,
+      "10": 0.06
+    },
+    "infectious_days": {
+      "2": 0.08,
+      "3": 0.2,
+      "4": 0.3,
+      "5": 0.23,
+      "6": 0.13,
+      "7": 0.06
+    },
+    "serotype_prior": {
+      "DENV-1": 0.25,
+      "DENV-2": 0.55,
+      "DENV-3": 0.15,
+      "DENV-4": 0.05
+    },
+    "base_biting_rate": 0.31,
+    "mosquito_to_human": 0.12,
+    "human_to_mosquito": 0.18,
+    "vector_eip_days": {
+      "minimum": 5,
+      "maximum": 14
+    }
+  },
+  "vector": {
+    "adult_mean_lifetime_days": 12.0,
+    "rainfall_lag_days": 14,
+    "flush_threshold_mm": 120.0,
+    "initial_adult_index": 1.0,
+    "initial_larval_pressure": 0.85
+  },
+  "importation": {
+    "weekly_mean_wet": 0.8,
+    "weekly_mean_dry": 0.4,
+    "province_weights": {
+      "katora": 0.5,
+      "western": 0.15,
+      "central_highlands": 0.02,
+      "eastern_coast": 0.03,
+      "timo": 0.05,
+      "pela": 0.23,
+      "ruwa": 0.02
+    }
+  },
+  "mobility": {
+    "katora": {
+      "katora": 0.93,
+      "western": 0.025,
+      "central_highlands": 0.012,
+      "eastern_coast": 0.014,
+      "timo": 0.007,
+      "pela": 0.009,
+      "ruwa": 0.003
+    },
+    "western": {
+      "katora": 0.035,
+      "western": 0.925,
+      "central_highlands": 0.015,
+      "eastern_coast": 0.008,
+      "timo": 0.004,
+      "pela": 0.01,
+      "ruwa": 0.003
+    },
+    "central_highlands": {
+      "katora": 0.035,
+      "western": 0.025,
+      "central_highlands": 0.92,
+      "eastern_coast": 0.015,
+      "timo": 0.002,
+      "pela": 0.002,
+      "ruwa": 0.001
+    },
+    "eastern_coast": {
+      "katora": 0.06,
+      "western": 0.015,
+      "central_highlands": 0.02,
+      "eastern_coast": 0.895,
+      "timo": 0.004,
+      "pela": 0.004,
+      "ruwa": 0.002
+    },
+    "timo": {
+      "katora": 0.025,
+      "western": 0.01,
+      "central_highlands": 0.005,
+      "eastern_coast": 0.005,
+      "timo": 0.945,
+      "pela": 0.007,
+      "ruwa": 0.003
+    },
+    "pela": {
+      "katora": 0.035,
+      "western": 0.02,
+      "central_highlands": 0.003,
+      "eastern_coast": 0.003,
+      "timo": 0.006,
+      "pela": 0.93,
+      "ruwa": 0.003
+    },
+    "ruwa": {
+      "katora": 0.02,
+      "western": 0.02,
+      "central_highlands": 0.005,
+      "eastern_coast": 0.005,
+      "timo": 0.005,
+      "pela": 0.005,
+      "ruwa": 0.94
+    }
+  },
+  "weather_mapping": {
+    "katora": {
+      "source": "katora",
+      "temp_offset_c": 0.0,
+      "rain_scale": 1.0,
+      "humidity_offset_pct": 0.0
+    },
+    "western": {
+      "source": "makadi_port",
+      "temp_offset_c": 0.0,
+      "rain_scale": 1.0,
+      "humidity_offset_pct": 0.0
+    },
+    "central_highlands": {
+      "source": "katora",
+      "temp_offset_c": -4.0,
+      "rain_scale": 1.25,
+      "humidity_offset_pct": 5.0
+    },
+    "eastern_coast": {
+      "source": "katora",
+      "temp_offset_c": 0.2,
+      "rain_scale": 1.15,
+      "humidity_offset_pct": 4.0
+    },
+    "timo": {
+      "source": "timo",
+      "temp_offset_c": 0.0,
+      "rain_scale": 1.0,
+      "humidity_offset_pct": 0.0
+    },
+    "pela": {
+      "source": "pela",
+      "temp_offset_c": 0.0,
+      "rain_scale": 1.0,
+      "humidity_offset_pct": 0.0
+    },
+    "ruwa": {
+      "source": "ruwa",
+      "temp_offset_c": 0.0,
+      "rain_scale": 1.0,
+      "humidity_offset_pct": 0.0
+    }
+  },
+  "clinical": {
+    "symptomatic_by_infection_order": {
+      "1": 0.25,
+      "2": 0.35,
+      "3": 0.3,
+      "4": 0.28
+    },
+    "severe_by_infection_order": {
+      "1": 0.005,
+      "2": 0.025,
+      "3": 0.012,
+      "4": 0.01
+    },
+    "age_severe_multiplier": {
+      "0-4": 1.3,
+      "5-14": 1.0,
+      "15-29": 0.8,
+      "30-59": 1.0,
+      "60+": 1.6
+    },
+    "warning_given_symptomatic": 0.08,
+    "hospitalized_given_severe": 0.85,
+    "treated_severe_fatality": 0.005,
+    "overloaded_severe_fatality": 0.03,
+    "soft_capacity_share": 0.7,
+    "hard_capacity_share": 0.85
+  },
+  "surveillance": {
+    "report_probability": {
+      "katora": 0.48,
+      "western": 0.38,
+      "central_highlands": 0.25,
+      "eastern_coast": 0.26,
+      "timo": 0.28,
+      "pela": 0.4,
+      "ruwa": 0.22
+    },
+    "severe_report_probability": 0.95,
+    "routine_sample_probability": 0.2,
+    "alert_sample_probability": 0.35,
+    "daily_lab_capacity": {
+      "katora": 40,
+      "western": 20,
+      "central_highlands": 8,
+      "eastern_coast": 6,
+      "timo": 8,
+      "pela": 8,
+      "ruwa": 4
+    },
+    "release_offsets_days": {
+      "provisional": 4,
+      "revised": 14,
+      "final": 28
+    },
+    "minimum_cases": {
+      "watch": 5,
+      "alert": 10,
+      "outbreak": 15
+    },
+    "rt_watch": 1.1,
+    "history_weeks": 110,
+    "reporting_queue_days": 60
+  },
+  "healthcare": {
+    "national_beds_per_1000": 2.1,
+    "main_hospital_beds": 420,
+    "hospitals": 6,
+    "health_centres": 22,
+    "dengue_bed_share": 0.08
+  },
+  "wmar1": {
+    "katora": {
+      "pilot_share": 0.1,
+      "community_coverage": 0.65,
+      "field_effectiveness": 0.45
+    },
+    "western": {
+      "pilot_share": 0.15,
+      "community_coverage": 0.65,
+      "field_effectiveness": 0.45
+    },
+    "other_provinces_coverage": 0.0
+  },
+  "state_limits": {
+    "cross_immunity_days": 180,
+    "weekly_history_weeks": 110,
+    "release_vintages": 330,
+    "daily_quality_history_days": 90
+  }
+}
