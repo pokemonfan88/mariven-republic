@@ -14,6 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = ROOT / "data" / "sources" / "dengue_external_anchors_2026.json"
 DEFAULT_OUTPUT = ROOT / "data" / "dengue_baseline_2026.json"
 ANCHOR_DATE = "2026-08-11"
+CALIBRATION = {
+    "base_biting_rate": 0.31,
+    "mosquito_to_human": 0.12,
+    "human_to_mosquito": 0.18,
+    "care_seeking_scale": 1.00,
+    "importation_weekly_scale": 1.00,
+}
 
 PROVINCES = (
     "katora",
@@ -142,15 +149,16 @@ def _clinical_parameters() -> dict[str, Any]:
 
 
 def _surveillance_parameters() -> dict[str, Any]:
+    care_scale = CALIBRATION["care_seeking_scale"]
     return {
         "report_probability": {
-            "katora": 0.48,
-            "western": 0.38,
-            "central_highlands": 0.25,
-            "eastern_coast": 0.26,
-            "timo": 0.28,
-            "pela": 0.40,
-            "ruwa": 0.22,
+            "katora": 0.48 * care_scale,
+            "western": 0.38 * care_scale,
+            "central_highlands": 0.25 * care_scale,
+            "eastern_coast": 0.26 * care_scale,
+            "timo": 0.28 * care_scale,
+            "pela": 0.40 * care_scale,
+            "ruwa": 0.22 * care_scale,
         },
         "severe_report_probability": 0.95,
         "routine_sample_probability": 0.20,
@@ -336,9 +344,9 @@ def build_baseline(source_path: Path = SOURCE_PATH) -> dict[str, Any]:
                 "DENV-3": 0.15,
                 "DENV-4": 0.05,
             },
-            "base_biting_rate": 0.31,
-            "mosquito_to_human": 0.12,
-            "human_to_mosquito": 0.18,
+            "base_biting_rate": CALIBRATION["base_biting_rate"],
+            "mosquito_to_human": CALIBRATION["mosquito_to_human"],
+            "human_to_mosquito": CALIBRATION["human_to_mosquito"],
             "vector_eip_days": {
                 "minimum": 5,
                 "maximum": 14,
@@ -352,8 +360,12 @@ def build_baseline(source_path: Path = SOURCE_PATH) -> dict[str, Any]:
             "initial_larval_pressure": 0.85,
         },
         "importation": {
-            "weekly_mean_wet": 0.8,
-            "weekly_mean_dry": 0.4,
+            "weekly_mean_wet": (
+                0.8 * CALIBRATION["importation_weekly_scale"]
+            ),
+            "weekly_mean_dry": (
+                0.4 * CALIBRATION["importation_weekly_scale"]
+            ),
             "province_weights": {
                 "katora": 0.50,
                 "western": 0.15,

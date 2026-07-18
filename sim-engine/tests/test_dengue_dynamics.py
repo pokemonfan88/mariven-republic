@@ -34,6 +34,9 @@ initialize_human_state = getattr(
 initialize_vector_state = getattr(
     dengue_dynamics, "initialize_vector_state", None
 )
+importation_force_of_infection = getattr(
+    dengue_dynamics, "importation_force_of_infection", None
+)
 is_susceptible = getattr(dengue_dynamics, "is_susceptible", None)
 mix_force_of_infection = getattr(
     dengue_dynamics, "mix_force_of_infection", None
@@ -152,6 +155,51 @@ class DengueHumanStateTests(unittest.TestCase):
             next_state["katora"]["susceptible"]["0-4"]["0001"], 7
         )
         self.assertEqual(next_state["katora"]["cross_immunity_cursor"], 1)
+
+    def test_cross_protected_stock_keeps_residual_susceptibility(self):
+        state = self._minimal_state(mask="0001", count=20)
+        state["katora"]["susceptible"]["0-4"]["0001"] = 0
+        state["katora"]["cross_protected"][1] = [{
+            "age_group": "0-4",
+            "new_mask": 1,
+            "count": 20,
+        }]
+        force = self._zero_force()
+        force["katora"]["DENV-2"] = 100.0
+
+        next_state, flows = advance_human_state(
+            state, force, self.baseline, self.rng_factory
+        )
+
+        self.assertEqual(flows["new_infections"], 20)
+        self.assertEqual(
+            flows["new_infections_by_serotype"]["DENV-2"], 20
+        )
+        self.assertEqual(next_state["katora"]["cross_protected"][1], [])
+        self.assertEqual(total_humans(next_state), 20)
+
+    def test_importation_uses_seasonal_independent_pressure(self):
+        self.assertIsNotNone(importation_force_of_infection)
+        raw = copy.deepcopy(self.baseline.raw)
+        raw["importation"]["weekly_mean_wet"] = 70.0
+        baseline = DengueBaseline.from_mapping(raw)
+        state = self._minimal_state(mask="0000", count=10_000)
+
+        force, flows = importation_force_of_infection(
+            date(2026, 12, 1),
+            state,
+            baseline,
+            self.rng_factory,
+        )
+
+        self.assertGreater(flows["pressure_count"], 0)
+        self.assertGreater(
+            sum(force["katora"].values()), 0.0
+        )
+        self.assertEqual(
+            flows["pressure_count"],
+            sum(flows["by_province"].values()),
+        )
 
     def test_immune_stock_ignores_force_from_seen_serotype(self):
         self.assertIsNotNone(advance_human_state)

@@ -7,6 +7,7 @@ import math
 import random
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
+from datetime import date
 from typing import Any
 
 from dengue_model import (
@@ -627,6 +628,94 @@ def advance_human_state(
                     )
                 flows["new_infections"] += infected
                 flows["new_infections_by_province"][province_name] += infected
+
+        residual = float(
+            baseline.raw["immunity"][
+                "cross_protection_residual_susceptibility"
+            ]
+        )
+        for bucket_index, bucket in enumerate(ring):
+            if bucket_index == cursor:
+                continue
+            retained_cross_protected: list[dict[str, Any]] = []
+            for cohort_index, cohort in enumerate(bucket):
+                available = cohort["count"]
+                mask = cohort["new_mask"]
+                hazards = []
+                for serotype_index, serotype in enumerate(SEROTYPES):
+                    raw_hazard = province_force.get(serotype, 0.0)
+                    if (
+                        isinstance(raw_hazard, bool)
+                        or not isinstance(raw_hazard, (int, float))
+                        or not math.isfinite(float(raw_hazard))
+                        or raw_hazard < 0
+                    ):
+                        raise DengueDataError(
+                            f"force.{province_name}.{serotype}: "
+                            "expected a finite non-negative number"
+                        )
+                    hazards.append(
+                        float(raw_hazard) * residual
+                        if is_susceptible(mask, serotype_index)
+                        else 0.0
+                    )
+                total_hazard = sum(hazards)
+                infected = 0
+                infection_rng = rng_factory(
+                    f"cross-infection:{province_name}:{bucket_index}:"
+                    f"{cohort_index}:{cohort['age_group']}:{mask}"
+                )
+                if total_hazard > 0:
+                    infected = _draw_binomial(
+                        available,
+                        1.0 - math.exp(-total_hazard),
+                        infection_rng,
+                    )
+                if infected < available:
+                    retained_cross_protected.append({
+                        **cohort,
+                        "count": available - infected,
+                    })
+                if infected == 0:
+                    continue
+                by_serotype = _draw_multinomial(
+                    infected, hazards, infection_rng
+                )
+                for serotype_index, serotype_count in enumerate(
+                    by_serotype
+                ):
+                    if serotype_count == 0:
+                        continue
+                    serotype = SEROTYPES[serotype_index]
+                    duration_rng = rng_factory(
+                        f"cross-incubation:{province_name}:"
+                        f"{cohort['age_group']}:{mask}:{serotype}"
+                    )
+                    for duration, count in _duration_counts(
+                        serotype_count, incubation, duration_rng
+                    ):
+                        new_exposed.append({
+                            "age_group": cohort["age_group"],
+                            "prior_mask": mask,
+                            "serotype": serotype,
+                            "days_remaining": duration,
+                            "count": count,
+                        })
+                    flows["infections_by_cohort"].append({
+                        "province": province_name,
+                        "age_group": cohort["age_group"],
+                        "prior_mask": mask,
+                        "serotype": serotype,
+                        "count": serotype_count,
+                    })
+                    flows["new_infections_by_serotype"][serotype] += (
+                        serotype_count
+                    )
+                flows["new_infections"] += infected
+                flows["new_infections_by_province"][province_name] += (
+                    infected
+                )
+            ring[bucket_index] = retained_cross_protected
         province["exposed"] = _merged_cohorts(
             province["exposed"] + new_exposed
         )
@@ -635,6 +724,77 @@ def advance_human_state(
     if total_humans(next_state) != starting_total:
         raise DengueDataError("human: population conservation failed")
     return next_state, flows
+
+
+def importation_force_of_infection(
+    d: date,
+    human_state: Mapping[str, Mapping[str, Any]],
+    baseline: DengueBaseline,
+    rng_factory: Callable[[str], random.Random],
+) -> tuple[dict[str, dict[str, float]], dict[str, Any]]:
+    """Draw low seasonal importation pressure on an isolated random stream."""
+    importation = baseline.raw["importation"]
+    wet_season = d.month in (11, 12, 1, 2, 3, 4)
+    weekly_mean = float(
+        importation[
+            "weekly_mean_wet" if wet_season else "weekly_mean_dry"
+        ]
+    )
+    if not math.isfinite(weekly_mean) or weekly_mean < 0:
+        raise DengueDataError(
+            "baseline.importation: expected a finite non-negative mean"
+        )
+    pressure_count = _draw_poisson(
+        weekly_mean / 7.0, rng_factory(f"count:{d.isoformat()}")
+    )
+    provinces = [
+        province for province in PROVINCES if province in human_state
+    ]
+    force = {
+        province: {serotype: 0.0 for serotype in SEROTYPES}
+        for province in provinces
+    }
+    flows: dict[str, Any] = {
+        "pressure_count": pressure_count,
+        "by_province": {province: 0 for province in provinces},
+        "by_serotype": {serotype: 0 for serotype in SEROTYPES},
+    }
+    if pressure_count == 0:
+        return force, flows
+    province_counts = _draw_multinomial(
+        pressure_count,
+        [
+            importation["province_weights"][province]
+            for province in provinces
+        ],
+        rng_factory(f"province:{d.isoformat()}"),
+    )
+    serotype_prior = baseline.raw["transmission"]["serotype_prior"]
+    for province, province_count in zip(
+        provinces, province_counts, strict=True
+    ):
+        if province_count == 0:
+            continue
+        population = sum(
+            human_state[province]["population_by_age"].values()
+        )
+        if population <= 0:
+            raise DengueDataError(
+                f"human.{province}.population_by_age: "
+                "importation requires positive population"
+            )
+        serotype_counts = _draw_multinomial(
+            province_count,
+            [serotype_prior[serotype] for serotype in SEROTYPES],
+            rng_factory(f"serotype:{d.isoformat()}:{province}"),
+        )
+        flows["by_province"][province] = province_count
+        for serotype, count in zip(
+            SEROTYPES, serotype_counts, strict=True
+        ):
+            force[province][serotype] = count / population
+            flows["by_serotype"][serotype] += count
+    return force, flows
 
 
 def derive_province_weather(

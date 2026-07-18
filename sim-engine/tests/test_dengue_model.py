@@ -135,6 +135,16 @@ class DengueBaselineTests(unittest.TestCase):
         ):
             DengueBaseline.from_mapping(raw)
 
+    def test_loader_rejects_bad_importation_weights(self):
+        raw = build_baseline()
+        raw["importation"]["province_weights"]["katora"] -= 0.1
+
+        with self.assertRaisesRegex(
+            DengueDataError,
+            r"^baseline\.importation\.province_weights",
+        ):
+            DengueBaseline.from_mapping(raw)
+
 
 class DengueStateInitializationTests(unittest.TestCase):
     def test_initializer_creates_dated_conserving_state(self):

@@ -287,6 +287,20 @@ def validate_baseline(raw: Mapping[str, Any]) -> None:
     if minimum_eip > maximum_eip:
         _fail("baseline.transmission.vector_eip_days", "minimum exceeds maximum")
 
+    importation = _mapping(
+        raw.get("importation"), "baseline.importation"
+    )
+    for key in ("weekly_mean_wet", "weekly_mean_dry"):
+        if _finite(
+            importation.get(key), f"baseline.importation.{key}"
+        ) < 0:
+            _fail(f"baseline.importation.{key}", "expected non-negative")
+    _distribution(
+        importation.get("province_weights"),
+        PROVINCES,
+        "baseline.importation.province_weights",
+    )
+
     mobility = _mapping(raw.get("mobility"), "baseline.mobility")
     _exact_keys(mobility, PROVINCES, "baseline.mobility")
     for resident in PROVINCES:
@@ -666,6 +680,7 @@ def dengue_step(
         advance_vector_state,
         derive_province_weather,
         infectiousness_by_province,
+        importation_force_of_infection,
         mix_force_of_infection,
         national_age_totals,
     )
@@ -716,6 +731,15 @@ def dengue_step(
     force = mix_force_of_infection(
         vector_flows["local_force"], baseline.raw["mobility"]
     )
+    imported_force, importation_flows = importation_force_of_infection(
+        d,
+        previous_humans,
+        baseline,
+        lambda name: rng_factory(f"importation:{name}"),
+    )
+    for province in PROVINCES:
+        for serotype in SEROTYPES:
+            force[province][serotype] += imported_force[province][serotype]
     human_state, infection_flows = advance_human_state(
         previous_humans,
         force,
@@ -764,6 +788,7 @@ def dengue_step(
             infection_flows["new_infections_by_serotype"]
         ),
         "vector_suitability": copy.deepcopy(vector_flows["suitability"]),
+        "importation_pressure": copy.deepcopy(importation_flows),
         "healthcare_pressure": pressure,
     }
     death_requests = copy.deepcopy(
