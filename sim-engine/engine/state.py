@@ -9,6 +9,14 @@ from numbers import Real
 from pathlib import Path
 from typing import Any
 
+from gdp_model import (
+    GdpBaseline,
+    GdpDataError,
+    gdp_headline_growth,
+    gdp_snapshot,
+    initialize_gdp_state,
+    validate_gdp_state,
+)
 from population_model import (
     PopulationBaseline,
     PopulationDataError,
@@ -17,7 +25,7 @@ from population_model import (
     validate_population_state,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _CORE_DICTIONARIES = (
     "_meta",
@@ -29,7 +37,7 @@ _CORE_DICTIONARIES = (
     "model_state",
 )
 _MODEL_DICTIONARIES = (
-    "weather", "exchange", "commodities", "inflation", "population",
+    "weather", "exchange", "commodities", "inflation", "population", "gdp",
 )
 _CORE_ECONOMIC_VALUES = (
     "inflation_pct",
@@ -42,7 +50,7 @@ _CORE_ECONOMIC_VALUES = (
 
 
 class StateValidationError(ValueError):
-    """Raised when a simulation state does not match schema v3."""
+    """Raised when a simulation state does not match schema v4."""
 
 
 def _fail(path: str, message: str) -> None:
@@ -116,8 +124,9 @@ def validate_state(
     state: Mapping[str, Any],
     *,
     population_baseline: PopulationBaseline | None = None,
+    gdp_baseline: GdpBaseline | None = None,
 ) -> None:
-    """Validate a schema-v3 state, raising an error with a field path."""
+    """Validate a schema-v4 state, raising an error with a field path."""
     if not isinstance(state, Mapping):
         _fail("state", "expected a dictionary")
 
@@ -222,6 +231,31 @@ def validate_state(
         value = demographics.get(key)
         if isinstance(value, bool) or not isinstance(value, int):
             _fail(f"state.demographics.{key}", "expected an integer")
+
+    selected_gdp_baseline = gdp_baseline or _default_gdp_baseline()
+    try:
+        validate_gdp_state(
+            model_state["gdp"], current_date, selected_gdp_baseline
+        )
+        expected_gdp = gdp_snapshot(
+            current_date,
+            model_state["gdp"],
+            population_value,
+            {"mvl_per_usd": economy["exchange_rate_mvl_per_usd"]},
+            selected_gdp_baseline,
+        )
+    except GdpDataError as exc:
+        raise StateValidationError(str(exc)) from exc
+    if economy.get("gdp") != expected_gdp:
+        _fail("state.economy.gdp", "does not match the GDP ledger")
+    expected_growth = gdp_headline_growth(
+        expected_gdp, selected_gdp_baseline
+    )
+    if economy.get("gdp_growth_pct") != expected_growth:
+        _fail(
+            "state.economy.gdp_growth_pct",
+            "does not match the latest GDP release",
+        )
     expected_net_migration = (
         demographics["returning_diaspora_today"]
         + demographics["foreign_immigrants_today"]
@@ -444,11 +478,51 @@ def _migrate_v2_to_v3(
         baseline,
         base_seed=selected_seed,
     )
-    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["schema_version"] = 3
     migrated["model_state"] = copy.deepcopy(dict(model_state))
     migrated["model_state"]["population"] = population_state
     migrated["demographics"] = population_snapshot(population_state)
-    validate_state(migrated, population_baseline=baseline)
+    return migrated
+
+
+def _migrate_v3_to_v4(
+    raw: Mapping[str, Any],
+    population_baseline: PopulationBaseline,
+    gdp_baseline: GdpBaseline,
+) -> dict:
+    migrated = copy.deepcopy(dict(raw))
+    current_date = _parse_date(migrated.get("date"))
+    population = migrated.get("population")
+    if isinstance(population, bool) or not isinstance(population, int) or population <= 0:
+        _fail("state.population", "expected a positive integer")
+    economy = _require_mapping(migrated, "economy")
+    exchange_rate = _finite_number(
+        economy.get("exchange_rate_mvl_per_usd"),
+        "state.economy.exchange_rate_mvl_per_usd",
+    )
+    model_state = _require_mapping(migrated, "model_state")
+    gdp_state = initialize_gdp_state(current_date, gdp_baseline)
+    public_gdp = gdp_snapshot(
+        current_date,
+        gdp_state,
+        population,
+        {"mvl_per_usd": exchange_rate},
+        gdp_baseline,
+    )
+    next_economy = copy.deepcopy(dict(economy))
+    next_economy["gdp"] = public_gdp
+    next_economy["gdp_growth_pct"] = gdp_headline_growth(
+        public_gdp, gdp_baseline
+    )
+    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["economy"] = next_economy
+    migrated["model_state"] = copy.deepcopy(dict(model_state))
+    migrated["model_state"]["gdp"] = gdp_state
+    validate_state(
+        migrated,
+        population_baseline=population_baseline,
+        gdp_baseline=gdp_baseline,
+    )
     return migrated
 
 
@@ -457,43 +531,63 @@ def migrate_state(
     *,
     base_seed: int | None = None,
     population_baseline: PopulationBaseline | None = None,
+    gdp_baseline: GdpBaseline | None = None,
 ) -> dict:
-    """Migrate a v1 or v2 state to deterministic schema v3."""
+    """Migrate a legacy state to deterministic schema v4."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
     baseline = population_baseline or _default_population_baseline()
+    selected_gdp_baseline = gdp_baseline or _default_gdp_baseline()
     version = raw.get("schema_version")
     if version is None:
         v2 = _migrate_v1_to_v2(raw, base_seed=base_seed)
-        return _migrate_v2_to_v3(v2, baseline)
+        v3 = _migrate_v2_to_v3(v2, baseline)
+        return _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
     if version == 2:
         if base_seed is not None:
             v2 = copy.deepcopy(dict(raw))
             v2["base_seed"] = base_seed
         else:
             v2 = raw
-        return _migrate_v2_to_v3(v2, baseline)
+        v3 = _migrate_v2_to_v3(v2, baseline)
+        return _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
+    if version == 3:
+        return _migrate_v3_to_v4(raw, baseline, selected_gdp_baseline)
     if version == SCHEMA_VERSION:
         prepared = copy.deepcopy(dict(raw))
-        validate_state(prepared, population_baseline=baseline)
+        validate_state(
+            prepared,
+            population_baseline=baseline,
+            gdp_baseline=selected_gdp_baseline,
+        )
         return prepared
-    _fail("state.schema_version", f"expected 2 or {SCHEMA_VERSION}")
+    _fail("state.schema_version", f"expected 2, 3 or {SCHEMA_VERSION}")
 
 
 def prepare_state(
     raw: Mapping[str, Any],
     *,
     population_baseline: PopulationBaseline | None = None,
+    gdp_baseline: GdpBaseline | None = None,
 ) -> dict:
-    """Return an independent, validated schema-v3 state."""
+    """Return an independent, validated schema-v4 state."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
     baseline = population_baseline or _default_population_baseline()
-    if raw.get("schema_version") in (None, 2):
-        return migrate_state(raw, population_baseline=baseline)
+    selected_gdp_baseline = gdp_baseline or _default_gdp_baseline()
+    if raw.get("schema_version") in (None, 2, 3):
+        return migrate_state(
+            raw,
+            population_baseline=baseline,
+            gdp_baseline=selected_gdp_baseline,
+        )
 
     prepared = copy.deepcopy(dict(raw))
-    validate_state(prepared, population_baseline=baseline)
+    validate_state(
+        prepared,
+        population_baseline=baseline,
+        gdp_baseline=selected_gdp_baseline,
+    )
     return prepared
 
 
@@ -503,4 +597,13 @@ def _default_population_baseline() -> PopulationBaseline:
         Path(__file__).resolve().parents[1]
         / "data"
         / "population_baseline_2026.json"
+    )
+
+
+@lru_cache(maxsize=1)
+def _default_gdp_baseline() -> GdpBaseline:
+    return GdpBaseline.from_json(
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "gdp_baseline_2026.json"
     )

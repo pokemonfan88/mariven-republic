@@ -9,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "engine"))
 
 from engine import EngineResources, render_brief, tick
-from state import StateValidationError, validate_state
+from state import StateValidationError, prepare_state, validate_state
 from weather_model import weather_step as real_weather_step
 
 
@@ -33,7 +33,7 @@ class EngineTests(unittest.TestCase):
 
     def test_tick_uses_all_p0_models(self):
         result = tick(self.v1, resources=self.resources)
-        self.assertEqual(result["schema_version"], 3)
+        self.assertEqual(result["schema_version"], 4)
         self.assertIn("katora", result["weather"])
         self.assertIn("exchange_rates", result["economy"])
         self.assertIn("commodities", result["economy"])
@@ -43,6 +43,14 @@ class EngineTests(unittest.TestCase):
             result["economy"]["cpi"]["yoy_pct"],
         )
         self.assertIn("population", result["model_state"])
+        self.assertIn("gdp", result["model_state"])
+        self.assertIn("gdp", result["economy"])
+        self.assertEqual(
+            result["economy"]["gdp"]["as_of_date"], result["date"]
+        )
+        self.assertEqual(
+            result["model_state"]["gdp"]["last_processed_date"], result["date"]
+        )
         self.assertEqual(result["population"], result["demographics"]["population"])
         self.assertEqual(
             result["population"],
@@ -60,11 +68,11 @@ class EngineTests(unittest.TestCase):
     def test_tick_preserves_unknown_model_state(self):
         previous = tick(self.v1, resources=self.resources)
         future_state = {"nested": {"trend": [1.0, 2.0, 3.0]}}
-        previous["model_state"]["gdp"] = copy.deepcopy(future_state)
+        previous["model_state"]["future_model"] = copy.deepcopy(future_state)
 
         result = tick(previous, resources=self.resources)
 
-        self.assertEqual(result["model_state"]["gdp"], future_state)
+        self.assertEqual(result["model_state"]["future_model"], future_state)
 
     def test_events_receive_fully_integrated_current_day_state(self):
         captured = {}
@@ -83,7 +91,19 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(captured["state"]["date"], result["date"])
         self.assertEqual(captured["state"]["weather"], result["weather"])
         self.assertEqual(captured["weather"], result["weather"])
-        self.assertEqual(captured["state"]["economy"], result["economy"])
+        captured_economy = copy.deepcopy(captured["state"]["economy"])
+        result_economy = copy.deepcopy(result["economy"])
+        captured_gdp = captured_economy.pop("gdp")
+        result_gdp = result_economy.pop("gdp")
+        self.assertEqual(captured_economy, result_economy)
+        self.assertEqual(
+            captured_gdp["current_quarter_nowcast"],
+            result_gdp["current_quarter_nowcast"],
+        )
+        self.assertEqual(
+            captured_gdp["annual_nowcast"], result_gdp["annual_nowcast"]
+        )
+        self.assertEqual(result_gdp["population"], result["population"])
         for model in ("weather", "exchange", "commodities", "inflation"):
             self.assertEqual(
                 captured["state"]["model_state"][model],
@@ -158,6 +178,30 @@ class EngineTests(unittest.TestCase):
             ),
             brief,
         )
+
+    def test_render_brief_includes_gdp_nowcast_and_latest_release(self):
+        result = tick(self.v1, resources=self.resources)
+        gdp = result["economy"]["gdp"]
+
+        brief = render_brief(result)
+
+        self.assertIn("**GDP**", brief)
+        self.assertIn(gdp["current_quarter_nowcast"]["period"], brief)
+        self.assertIn(gdp["latest_release"]["period"], brief)
+        self.assertIn("年度预测", brief)
+
+    def test_render_brief_handles_benchmark_release_without_yoy_growth(self):
+        early = copy.deepcopy(self.v1)
+        early["date"] = "2026-04-01"
+        state = prepare_state(
+            early,
+            population_baseline=self.resources.population_baseline,
+            gdp_baseline=self.resources.gdp_baseline,
+        )
+
+        brief = render_brief(state)
+
+        self.assertIn("基准期同比不适用", brief)
 
     def test_render_brief_separates_notable_and_non_notable_deaths(self):
         notable = {

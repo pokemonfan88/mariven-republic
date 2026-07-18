@@ -3,14 +3,14 @@
 > 一个以真实公开数据为锚点、按日确定性运行的虚构国家模型。
 > A deterministic living-nation simulation anchored in real public data.
 
-马里文共和国是一个虚构的南太平洋发展中国家。本仓库把世界观资料、公开数据、确定性模拟模型和多个国家网站放在同一套可追溯体系中：天气、汇率、商品价格、CPI 与人口会在每日 Tick 中依次更新，相同状态与种子始终产生相同结果。
+马里文共和国是一个虚构的南太平洋发展中国家。本仓库把世界观资料、公开数据、确定性模拟模型和多个国家网站放在同一套可追溯体系中：天气、汇率、商品价格、CPI、人口与 GDP 会在每日 Tick 中依次更新，相同状态与种子始终产生相同结果。
 
 > [!IMPORTANT]
 > 马里文、其政府、机构、人物与事件均为虚构内容。现实数据仅用于模型校准和方法参考。
 
 ## English summary
 
-Mariven Republic is a fictional South Pacific country implemented as a reproducible living-nation model. The repository combines 84 worldbuilding documents, public datasets, government-facing web prototypes, and a deterministic Python simulation engine. Five P0 models currently run in the daily pipeline: weather, foreign exchange, commodity prices, CPI inflation, and a full single-age population cohort model.
+Mariven Republic is a fictional South Pacific country implemented as a reproducible living-nation model. The repository combines 84 worldbuilding documents, public datasets, government-facing web prototypes, and a deterministic Python simulation engine. Six P0 models currently run in the daily pipeline: weather, foreign exchange, commodity prices, CPI inflation, a full single-age population cohort model, and quarterly GDP national accounts.
 
 ## 国家快照
 
@@ -27,7 +27,7 @@ Mariven Republic is a fictional South Pacific country implemented as a reproduci
 
 ## 当前可运行模型
 
-P0 已完成 5/8。五个已实现模型均由 [`sim-engine/engine/engine.py`](sim-engine/engine/engine.py) 的每日主循环统一编排。
+P0 已完成 6/8。六个已实现模型均由 [`sim-engine/engine/engine.py`](sim-engine/engine/engine.py) 的每日主循环统一编排。
 
 | 模型 | 状态 | 核心方法 | 主要输出 |
 |---|:---:|---|---|
@@ -36,7 +36,7 @@ P0 已完成 5/8。五个已实现模型均由 [`sim-engine/engine/engine.py`](s
 | 商品价格 | ✅ | 世界银行月度数据、确定性回填 | 糖、黄金、布伦特原油与数据新鲜度 |
 | CPI 通胀 | ✅ | 分类权重、燃油传导、月度发布日 | CPI 指数、同比、环比和分类贡献 |
 | 人口 | ✅ | 单岁年龄×性别队列、生命表、出生与迁移账本 | 总人口、年龄结构、抚养比与每日人口流量 |
-| GDP | ⬜ | 规划中 | 季度 GDP 与增长贡献 |
+| GDP | ✅ | 生产法13行业+产品税、支出法核对、季度发布与修订 | 季度正式值、行业贡献、nowcast 与人均 GDP |
 | 登革热 | ⬜ | 规划中 | 周病例、传播状态与医疗压力 |
 | 犯罪 | ⬜ | 规划中 | 分类案件、风险与事件 |
 
@@ -56,6 +56,20 @@ P0 已完成 5/8。五个已实现模型均由 [`sim-engine/engine/engine.py`](s
 
 基线设计说明见 [`docs/superpowers/specs/2026-07-16-complete-age-cohort-population-model-design.md`](docs/superpowers/specs/2026-07-16-complete-age-cohort-population-model-design.md)。
 
+## 完整季度 GDP 国民核算模型
+
+GDP 模型使用 schema v4 状态，以生产法为权威账本、支出法作独立核对：
+
+- 2025 年名义 GDP 基准为 163.5 亿 MVL；2026 中央路径为实际增长 2.4%、GDP 平减指数增长 2.2%。
+- 生产法维护13个行业和产品税净额，聚合后严格保持第一产业及采矿14.2%、工业17.8%、服务业57.4%、产品税净额10.6%的设定结构。
+- 支出法使用居民消费、政府消费、固定资本形成、存货、货物与服务进出口及显式统计误差，恒等式必须与生产法闭合。
+- 每日累计潜在行业活动，季度关闭后分别在季末+90、+180、+365天发布初值、修订值和最终值。
+- 降雨、糖、黄金、布伦特原油、汇率、CPI、人口与高气旋风险通过版本化、有界弹性影响已声明行业。
+- 公开状态同时给出最近正式季度、当前季度 nowcast、年度 nowcast、行业增长贡献以及按当日人口和汇率计算的人均 GDP。
+- 游客境内总消费62.084亿 MVL与旅游直接增加值16.35亿 MVL分开核算，避免把营业流水重复计入 GDP。
+
+设计说明见 [`docs/superpowers/specs/2026-07-18-complete-quarterly-gdp-model-design.md`](docs/superpowers/specs/2026-07-18-complete-quarterly-gdp-model-design.md)。
+
 ## 每日数据流
 
 ```mermaid
@@ -64,13 +78,15 @@ flowchart LR
     B --> C["汇率"]
     C --> D["商品价格"]
     D --> E["CPI"]
-    E --> F["显著事件与死亡分类"]
-    F --> G["人口队列结算"]
-    G --> H["schema v3 完整验证"]
-    H --> I["JSON 快照与 SQLite 索引"]
+    E --> F["GDP日度活动与季度台账"]
+    F --> G["显著事件与死亡分类"]
+    G --> H["人口队列结算"]
+    H --> I["刷新人均GDP"]
+    I --> J["schema v4 完整验证"]
+    J --> K["JSON 快照与 SQLite 索引"]
 ```
 
-各模型使用隔离的命名随机流。人口模型升级到 schema v3 后，天气、汇率、商品、CPI 和既有事件仍保留原有 schema v2 随机序列，避免模型新增导致历史结果漂移。
+各模型使用隔离的命名随机流。整体状态升级到 schema v4 后，天气、汇率、商品、CPI 和既有事件仍保留 schema v2 随机序列，人口保留 schema v3 随机序列；GDP 本身不消耗随机流，避免新模型导致历史结果漂移。
 
 ## 快速开始
 
@@ -108,7 +124,7 @@ cd sim-engine
 python -m unittest discover -s tests -p "test*.py" -v
 ```
 
-当前测试覆盖确定性、随机流隔离、schema v1/v2→v3 迁移、严格 JSON、断点恢复、死亡去重、年龄推进、365 天精确账本、2035 长期演化，以及 dry-run 不落盘。
+当前测试覆盖确定性、随机流隔离、schema v1/v2/v3→v4 迁移、严格 JSON、断点恢复、死亡去重、年龄推进、365 天人口精确账本、GDP 双重核算与发布版本、2035 长期人口演化，以及 dry-run 不落盘。
 
 ### 查看七天诊断报告
 
@@ -127,6 +143,8 @@ python test_7days.py
 | 商品价格 | World Bank Pink Sheet | 糖、黄金和布伦特原油 |
 | 单岁人口先验 | UN World Population Prospects 2024 | Fiji 2026 中方案、0–100+、分性别结构 |
 | 人口普查交叉核对 | Fiji Bureau of Statistics | 2017 年年龄—性别人口结构 |
+| 2026 GDP 宏观路径 | IMF Fiji 2026 Article IV | 实际增长、GDP 平减指数与南太平洋岛国情景先验 |
+| GDP 支出结构与数据可得性 | Fiji Bureau of Statistics | 2024 支出法结构、2026 发布日历与可得性边界 |
 
 人口源数据链可复现：
 
@@ -134,6 +152,12 @@ python test_7days.py
 2. [`sim-engine/data/sources/wpp2024_fiji_2026_single_age_sex.json`](sim-engine/data/sources/wpp2024_fiji_2026_single_age_sex.json) 保存小型源摘录、官方 URL、版本、访问日期、许可和源文件/数组 SHA-256。
 3. [`sim-engine/scripts/build_population_baseline.py`](sim-engine/scripts/build_population_baseline.py) 将先验校准为马里文 1,200,000 人基线。
 4. [`sim-engine/data/population_baseline_2026.json`](sim-engine/data/population_baseline_2026.json) 是 Tick 直接读取的已提交运行产物。
+
+GDP 数据链同样可复现：
+
+1. [`sim-engine/data/sources/gdp_external_anchors_2026.json`](sim-engine/data/sources/gdp_external_anchors_2026.json) 保存 IMF 与斐济统计局的官方 URL、发布日期、访问日期、提取值和数据可得性边界。
+2. [`sim-engine/scripts/build_gdp_baseline.py`](sim-engine/scripts/build_gdp_baseline.py) 将外部先验与马里文2025年度权威设定校准为生产法、支出法、季度季节性和版本化驱动参数。
+3. [`sim-engine/data/gdp_baseline_2026.json`](sim-engine/data/gdp_baseline_2026.json) 是 Tick 离线读取的已提交运行产物，并可由构建脚本重新生成。
 
 联合国 WPP 数据按 CC BY 3.0 IGO 标注；其他外部数据的再利用应遵循各自来源条款。
 
@@ -162,6 +186,7 @@ mariven-republic/
 
 - [模拟引擎](sim-engine/engine/engine.py)
 - [人口模型](sim-engine/engine/population_model.py)
+- [GDP 模型](sim-engine/engine/gdp_model.py)
 - [模型目录](sim-engine/docs/model-catalog.md)
 - [人口与宗教设定](sim-engine/worldbuilding/04-demographics.md)
 - [政府门户](gov.mv/index.html)
@@ -172,7 +197,7 @@ mariven-republic/
 ## 设计原则
 
 - **确定性优先**：相同状态、日期、schema 与命名随机流产生相同结果。
-- **单一账本**：人口、死亡和流量只由一个权威模型结算，避免重复计算。
+- **单一账本**：人口、死亡和 GDP 总量分别由唯一权威账本结算，避免重复计算。
 - **真实数据只作锚点**：现实数据提供形状、范围和方法，不把 Fiji 直接复制成马里文。
 - **运行时离线**：外部数据先提取、校验并提交，日常 Tick 不访问网络。
 - **状态可迁移**：旧 schema 显式迁移，新 schema 严格拒绝损坏状态。
@@ -186,7 +211,7 @@ mariven-republic/
 - [x] 商品价格
 - [x] CPI 通胀
 - [x] 完整年龄队列人口模型
-- [ ] GDP
+- [x] 完整季度 GDP 国民核算模型
 - [ ] 登革热
 - [ ] 犯罪
 - [ ] 海洋、旅游、产业与灾害等 P1 模型

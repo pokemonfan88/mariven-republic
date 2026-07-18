@@ -146,7 +146,8 @@
     "trade_partners_import": ["新加坡", "澳大利亚", "中国", "新西兰", "美国"],
     "tourism": {
       "annual_visitors_millions": 1.1,
-      "revenue_mvl_billions": 7.5,
+      "visitor_spending_mvl_billions": 6.2084,
+      "direct_gva_mvl_billions": 1.635,
       "gdp_share_direct_pct": 10,
       "employment": 38000,
       "top_source_markets": ["澳大利亚 35%", "新西兰 22%", "美国 10%", "中国 8%", "欧洲 12%"]

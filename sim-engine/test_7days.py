@@ -23,7 +23,7 @@ resources = EngineResources.load(Path(__file__).parent / "data")
 start = date.fromisoformat(state["date"])
 
 print("=" * 70)
-print("MARIVEN ENGINE v3 - 7-day output")
+print("MARIVEN ENGINE v4 - 7-day output")
 print(f"Start: {start}  Seed: {state['base_seed']}  Population: {state['population']:,}")
 print("=" * 70)
 
@@ -44,6 +44,21 @@ for _ in range(7):
     print(f"  Risk: fire={w['fire_risk']}  coral={w['coral_bleaching_risk']}  cyclone={w['cyclone_risk']}  SST={w['sst_c']}C")
 
     print(f"  MVL/USD: {e['exchange_rate_mvl_per_usd']:.4f}  CPI: {ms['inflation']['published_yoy_pct']:.2f}%  95#: ${e['fuel_95_price_mvl']}")
+
+    gdp = e["gdp"]
+    latest = gdp["latest_release"]
+    latest_label = (
+        "none"
+        if latest is None
+        else f"{latest['period']} {latest['vintage']}"
+    )
+    annual = gdp["annual_nowcast"]
+    print(
+        f"  GDP: {gdp['current_quarter_nowcast']['period']} nowcast  "
+        f"annual={annual['nominal_gdp_mvl'] / 1_000_000:.1f}m MVL  "
+        f"real growth={annual['real_growth_pct']:.2f}%  "
+        f"latest={latest_label}"
+    )
 
     cm = e.get("commodities", {})
     if cm.get("sugar_usd_lb"):

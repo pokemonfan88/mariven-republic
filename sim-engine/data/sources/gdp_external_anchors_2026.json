@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "schema": "mariven-gdp-source-anchors-v1",
+    "description": "Official Fiji macroeconomic and national-accounts anchors used only as prior shapes for the fictional Mariven GDP model",
+    "accessed_on": "2026-07-18",
+    "fictional_country_notice": "The extracted values are not Mariven observations and are never copied as Mariven levels."
+  },
+  "sources": {
+    "imf_fiji_2026_article_iv": {
+      "publisher": "International Monetary Fund",
+      "title": "Republic of Fiji: 2026 Article IV Consultation",
+      "country_report": "26/118",
+      "published_on": "2026-05-14",
+      "url": "https://www.imf.org/-/media/files/publications/cr/2026/english/1fjiea2026001.pdf",
+      "use": "2026 real-growth and GDP-deflator prior for a comparable South Pacific island economy",
+      "extracted": {
+        "reference_year": 2026,
+        "real_gdp_growth_pct": 2.4,
+        "gdp_deflator_growth_pct": 2.2,
+        "gdp_current_market_prices_fjd_million": 14419,
+        "gdp_current_market_prices_usd_million": 6352
+      }
+    },
+    "fiji_2024_expenditure_accounts": {
+      "publisher": "Fiji Bureau of Statistics",
+      "title": "Fiji's Nominal Gross Domestic Product (GDP) 2024 Expenditure Approach",
+      "published_on": "2025-12-11",
+      "url": "https://www.statsfiji.gov.fj/fijis-nominal-gross-domestic-product-gdp-2024-expenditure-approach/",
+      "use": "Consumption, capital-formation and net-export shares for expenditure-account calibration",
+      "extracted": {
+        "reference_year": 2024,
+        "nominal_gdp_fjd_billion": 13.5,
+        "final_consumption_expenditure_fjd_billion": 12.1,
+        "gross_capital_formation_fjd_billion": 2.8,
+        "net_exports_fjd_billion": -1.4
+      }
+    },
+    "fiji_2026_release_calendar": {
+      "publisher": "Fiji Bureau of Statistics",
+      "title": "2026 Economic Statistics Division Advance Release Calendar",
+      "published_on": "2026-03-01",
+      "url": "https://www.statsfiji.gov.fj/download/252/release-calendar/5898/2026-esd-advance-release-calendar.pdf",
+      "use": "Availability boundary for official annual national accounts as of the model access date",
+      "extracted": {
+        "gdp_production_2025_release_date": "2026-08-31",
+        "gdp_income_2025_release_date": "2026-09-30",
+        "gdp_expenditure_2025_release_date": "2026-11-27",
+        "complete_2025_production_data_available_on_access_date": false
+      }
+    }
+  }
+}

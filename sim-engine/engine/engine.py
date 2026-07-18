@@ -14,6 +14,9 @@ from archive import archive_day
 from commodities_model import CommoditySeries, commodities_step
 from events_model import events_step
 from exchange_model import FxDataset, exchange_step
+from gdp_model import (
+    GdpBaseline, gdp_headline_growth, gdp_snapshot, gdp_step,
+)
 from inflation_model import inflation_step
 from population_model import PopulationBaseline, population_step
 from random_streams import make_rng
@@ -29,6 +32,7 @@ class EngineResources:
     fx_dataset: FxDataset
     commodity_series: CommoditySeries
     population_baseline: PopulationBaseline
+    gdp_baseline: GdpBaseline
     nation_profile: dict
 
     @classmethod
@@ -47,6 +51,9 @@ class EngineResources:
             population_baseline=PopulationBaseline.from_json(
                 data_dir / "population_baseline_2026.json"
             ),
+            gdp_baseline=GdpBaseline.from_json(
+                data_dir / "gdp_baseline_2026.json"
+            ),
             nation_profile=nation_profile,
         )
 
@@ -61,12 +68,13 @@ def tick(
     prepared = prepare_state(
         previous_state,
         population_baseline=resources.population_baseline,
+        gdp_baseline=resources.gdp_baseline,
     )
     next_state = copy.deepcopy(prepared)
     d = date.fromisoformat(prepared["date"]) + timedelta(days=1)
     base_seed = prepared["base_seed"]
-    schema_version = prepared["schema_version"]
     legacy_random_schema_version = 2
+    population_random_schema_version = 3
     model_state = prepared["model_state"]
 
     def weather_rng(stream_name: str):
@@ -89,7 +97,11 @@ def tick(
 
     def population_rng(stream_name: str):
         return make_rng(
-            base_seed, schema_version, d, "population", stream_name
+            base_seed,
+            population_random_schema_version,
+            d,
+            "population",
+            stream_name,
         )
 
     weather, weather_state, weather_events = weather_step(
@@ -134,12 +146,28 @@ def tick(
     economy["fuel_diesel_price_mvl"] = cpi["fuel_diesel_price_mvl"]
     economy["inflation_pct"] = cpi["yoy_pct"]
 
+    gdp, gdp_state, gdp_events = gdp_step(
+        d,
+        model_state["gdp"],
+        weather,
+        cpi,
+        commodities,
+        exchange,
+        prepared["population"],
+        resources.gdp_baseline,
+    )
+    economy["gdp"] = gdp
+    economy["gdp_growth_pct"] = gdp_headline_growth(
+        gdp, resources.gdp_baseline
+    )
+
     next_model_state = copy.deepcopy(prepared["model_state"])
     next_model_state.update({
         "weather": weather_state,
         "exchange": exchange_state,
         "commodities": commodity_state,
         "inflation": inflation_state,
+        "gdp": gdp_state,
     })
     next_state["model_state"] = next_model_state
 
@@ -157,12 +185,24 @@ def tick(
     next_state["demographics"] = demographics
     next_state["deaths_today"] = deaths
     next_state["model_state"]["population"] = population_state
+    refreshed_gdp = gdp_snapshot(
+        d,
+        gdp_state,
+        demographics["population"],
+        exchange,
+        resources.gdp_baseline,
+    )
+    next_state["economy"]["gdp"] = refreshed_gdp
+    next_state["economy"]["gdp_growth_pct"] = gdp_headline_growth(
+        refreshed_gdp, resources.gdp_baseline
+    )
 
     combined_events = (
         weather_events
         + exchange_events
         + commodity_events
         + cpi_events
+        + gdp_events
         + population_events
         + general_events
     )
@@ -177,6 +217,7 @@ def tick(
     validate_state(
         next_state,
         population_baseline=resources.population_baseline,
+        gdp_baseline=resources.gdp_baseline,
     )
     return next_state
 
@@ -203,6 +244,28 @@ def render_brief(state: Mapping[str, Any]) -> str:
             f"95#汽油 ${economy['fuel_95_price_mvl']}"
         ),
     ]
+    gdp = economy.get("gdp")
+    if gdp is not None:
+        annual = gdp["annual_nowcast"]
+        current_quarter = gdp["current_quarter_nowcast"]
+        latest = gdp["latest_release"]
+        if latest is None:
+            latest_text = "尚无季度正式值"
+        elif latest["real_growth_yoy_pct"] is None:
+            latest_text = (
+                f"最新 {latest['period']} {latest['vintage']} "
+                "基准期同比不适用"
+            )
+        else:
+            latest_text = (
+                f"最新 {latest['period']} {latest['vintage']} "
+                f"实际同比 {latest['real_growth_yoy_pct']:.1f}%"
+            )
+        lines.append(
+            f"**GDP** {current_quarter['period']} nowcast | "
+            f"{latest_text} | 年度预测 "
+            f"{annual['nominal_gdp_mvl'] / 1_000_000:.1f} 百万 MVL"
+        )
     if demographics is not None:
         lines.append(
             f"**人口** {demographics['population']:,} | "

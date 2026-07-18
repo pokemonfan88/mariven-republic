@@ -35,6 +35,35 @@ V1 = {
 
 
 class StateTests(unittest.TestCase):
+    def test_prepare_migrates_v3_state_to_v4_with_gdp_ledger(self):
+        v3 = prepare_state(V1)
+        v3["schema_version"] = 3
+        v3["model_state"].pop("gdp", None)
+        v3["economy"].pop("gdp", None)
+
+        migrated = migrate_state(v3)
+
+        self.assertEqual(migrated["schema_version"], 4)
+        self.assertIn("gdp", migrated["model_state"])
+        self.assertEqual(
+            migrated["model_state"]["gdp"]["last_processed_date"],
+            migrated["date"],
+        )
+
+    def test_early_2026_migration_uses_anchor_growth_before_yoy_release(self):
+        early = copy.deepcopy(V1)
+        early["date"] = "2026-04-01"
+
+        migrated = migrate_state(early)
+
+        self.assertEqual(
+            migrated["economy"]["gdp"]["latest_release"][
+                "real_growth_yoy_pct"
+            ],
+            None,
+        )
+        self.assertEqual(migrated["economy"]["gdp_growth_pct"], 2.4)
+
     def test_prepare_migrates_without_mutating_input(self):
         original = copy.deepcopy(V1)
         migrated = prepare_state(V1)
@@ -44,8 +73,8 @@ class StateTests(unittest.TestCase):
         self.assertEqual(migrated["weather"]["condition"], "多云")
         self.assertEqual(set(migrated["model_state"]),
                          {"weather", "exchange", "commodities", "inflation",
-                          "population"})
-        self.assertEqual(SCHEMA_VERSION, 3)
+                          "population", "gdp"})
+        self.assertEqual(SCHEMA_VERSION, 4)
         self.assertEqual(migrated["demographics"]["population"], 1_200_000)
         self.assertEqual(
             sum(migrated["model_state"]["population"]["cohorts"]["male"])
@@ -53,13 +82,13 @@ class StateTests(unittest.TestCase):
             1_200_000,
         )
 
-    def test_prepare_copies_v3_state(self):
-        v3 = prepare_state(V1)
-        copied = prepare_state(v3)
-        self.assertEqual(copied, v3)
-        self.assertIsNot(copied, v3)
+    def test_prepare_copies_v4_state(self):
+        v4 = prepare_state(V1)
+        copied = prepare_state(v4)
+        self.assertEqual(copied, v4)
+        self.assertIsNot(copied, v4)
 
-    def test_prepare_migrates_v2_state_to_v3(self):
+    def test_prepare_migrates_v2_state_to_v4(self):
         v2 = copy.deepcopy(migrate_state(V1))
         v2["schema_version"] = 2
         v2.pop("demographics", None)
@@ -68,8 +97,9 @@ class StateTests(unittest.TestCase):
 
         migrated = prepare_state(v2)
 
-        self.assertEqual(migrated["schema_version"], 3)
+        self.assertEqual(migrated["schema_version"], 4)
         self.assertIn("population", migrated["model_state"])
+        self.assertIn("gdp", migrated["model_state"])
         self.assertEqual(
             migrated["model_state"]["future_model"], {"preserved": True}
         )
@@ -241,7 +271,7 @@ class StateTests(unittest.TestCase):
 
     def test_validate_wraps_json_serialization_errors(self):
         broken = migrate_state(V1)
-        broken["model_state"]["gdp"] = {"unsupported": object()}
+        broken["model_state"]["future_model"] = {"unsupported": object()}
 
         with self.assertRaisesRegex(
             StateValidationError, r"^state: not JSON serializable"
