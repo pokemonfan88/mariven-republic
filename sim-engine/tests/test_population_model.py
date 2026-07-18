@@ -378,6 +378,94 @@ class PopulationStepTests(unittest.TestCase):
         )
         validate_population_state(next_state, public["population"], self.baseline)
 
+    def test_cause_specific_death_stays_in_requested_age_group(self):
+        request = {
+            "cause": "dengue",
+            "province": "western",
+            "age_group": "5-14",
+            "count": 1,
+        }
+
+        public, _, deaths, _ = population_step(
+            date(2026, 8, 12),
+            self.state,
+            {"total": 0},
+            self.baseline,
+            self.rng_factory,
+            cause_specific_deaths=[request],
+        )
+
+        self.assertEqual(deaths["dengue"], 1)
+        baseline_deaths = self.state["cycle"]["plans"][
+            "baseline_deaths"
+        ][0]
+        self.assertEqual(deaths["total"], baseline_deaths)
+        self.assertEqual(deaths["notable_total"], 1)
+        self.assertEqual(deaths["non_notable"], baseline_deaths - 1)
+        self.assertEqual(public["cause_specific_deaths_today"][0]["count"], 1)
+        removed = public["cause_specific_deaths_today"][0]["removed"]
+        self.assertEqual(sum(item["count"] for item in removed), 1)
+        self.assertTrue(all(5 <= item["age"] <= 14 for item in removed))
+
+    def test_empty_cause_specific_input_preserves_legacy_result(self):
+        arguments = (
+            date(2026, 8, 12),
+            self.state,
+            {"total": 0},
+            self.baseline,
+            self.rng_factory,
+        )
+
+        legacy = population_step(*arguments)
+        explicit_empty = population_step(
+            *arguments, cause_specific_deaths=[]
+        )
+
+        self.assertEqual(explicit_empty, legacy)
+
+    def test_cause_specific_deaths_above_baseline_are_excess(self):
+        baseline_deaths = self.state["cycle"]["plans"][
+            "baseline_deaths"
+        ][0]
+
+        public, _, deaths, _ = population_step(
+            date(2026, 8, 12),
+            self.state,
+            {"total": 0},
+            self.baseline,
+            self.rng_factory,
+            cause_specific_deaths=[{
+                "cause": "dengue",
+                "province": "katora",
+                "age_group": "60+",
+                "count": baseline_deaths + 2,
+            }],
+        )
+
+        self.assertEqual(deaths["total"], baseline_deaths + 2)
+        self.assertEqual(deaths["non_notable"], 0)
+        self.assertEqual(deaths["excess"], 2)
+        self.assertEqual(public["excess_deaths_today"], 2)
+
+    def test_cause_specific_death_rejects_unknown_cause(self):
+        with self.assertRaisesRegex(
+            PopulationDataError,
+            r"cause_specific_deaths\[0\]\.cause",
+        ):
+            population_step(
+                date(2026, 8, 12),
+                self.state,
+                {"total": 0},
+                self.baseline,
+                self.rng_factory,
+                cause_specific_deaths=[{
+                    "cause": "unknown",
+                    "province": "western",
+                    "age_group": "5-14",
+                    "count": 1,
+                }],
+            )
+
     def test_notable_deaths_above_baseline_become_excess(self):
         baseline_deaths = self.state["cycle"]["plans"]["baseline_deaths"][0]
         notable = {

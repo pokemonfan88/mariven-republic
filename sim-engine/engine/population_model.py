@@ -4,7 +4,7 @@ import copy
 import json
 import math
 import random
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -34,6 +34,22 @@ BASELINE_VERSION = "mariven-population-2026-v1"
 PARAMETER_VERSION = "mariven-demographic-path-v1"
 POPULATION_SCHEMA_VERSION = 3
 PLAN_DAYS = 365
+DENGUE_PROVINCES = (
+    "katora",
+    "western",
+    "central_highlands",
+    "eastern_coast",
+    "timo",
+    "pela",
+    "ruwa",
+)
+DENGUE_AGE_BOUNDS = {
+    "0-4": (0, 4),
+    "5-14": (5, 14),
+    "15-29": (15, 29),
+    "30-59": (30, 59),
+    "60+": (60, 100),
+}
 
 
 class PopulationDataError(ValueError):
@@ -890,7 +906,8 @@ def _remove_people(
     *,
     mortality_rates: Mapping[str, list[float]] | None = None,
     path: str,
-) -> None:
+    restrict_to_positive_weights: bool = False,
+) -> dict[str, list[int]]:
     if mortality_rates is None:
         preference_weights = weights
     else:
@@ -901,6 +918,8 @@ def _remove_people(
             ]
             for sex in SEXES
         }
+
+    removed = {sex: [0] * AGE_COUNT for sex in SEXES}
 
     def adjacent_available(preferred_sex: str, preferred_age: int):
         other_sex = "female" if preferred_sex == "male" else "male"
@@ -915,6 +934,10 @@ def _remove_people(
                     if (
                         0 <= age < AGE_COUNT
                         and state["cohorts"][sex][age] > 0
+                        and (
+                            not restrict_to_positive_weights
+                            or weights[sex][age] > 0
+                        )
                     ):
                         return sex, age
         raise PopulationDataError(
@@ -928,6 +951,8 @@ def _remove_people(
         )
         sex, age = adjacent_available(preferred_sex, preferred_age)
         _remove_from_cell(state, sex, age, rng)
+        removed[sex][age] += 1
+    return removed
 
 
 def _add_people(
@@ -972,7 +997,7 @@ def _five_year_groups(cohorts: Mapping[str, list[int]]) -> list[dict[str, Any]]:
 
 def _public_demographics(
     state: Mapping[str, Any],
-    flows: Mapping[str, int],
+    flows: Mapping[str, Any],
 ) -> dict[str, Any]:
     cohorts = state["cohorts"]
     male = sum(cohorts["male"])
@@ -1004,6 +1029,9 @@ def _public_demographics(
         "notable_deaths_today": flows["notable_deaths"],
         "other_deaths_today": flows["non_notable_deaths"],
         "excess_deaths_today": flows["excess_deaths"],
+        "cause_specific_deaths_today": copy.deepcopy(
+            flows["cause_specific_deaths"]
+        ),
         "returning_diaspora_today": flows["returning_diaspora"],
         "foreign_immigrants_today": flows["foreign_immigrants"],
         "emigrants_today": flows["emigrants"],
@@ -1038,6 +1066,7 @@ def population_snapshot(state: Mapping[str, Any]) -> dict[str, Any]:
             "notable_deaths": 0,
             "non_notable_deaths": 0,
             "excess_deaths": 0,
+            "cause_specific_deaths": [],
             "returning_diaspora": 0,
             "foreign_immigrants": 0,
             "emigrants": 0,
@@ -1065,6 +1094,61 @@ def _validated_notable_deaths(
             "notable_deaths.total: does not match notable categories"
         )
     return result
+
+
+def _validated_cause_specific_deaths(
+    requests: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    if isinstance(requests, (str, bytes)) or not isinstance(requests, Sequence):
+        raise PopulationDataError("cause_specific_deaths: expected a sequence")
+    result: list[dict[str, Any]] = []
+    for index, request in enumerate(requests):
+        path = f"cause_specific_deaths[{index}]"
+        if not isinstance(request, Mapping):
+            raise PopulationDataError(f"{path}: expected a dictionary")
+        cause = request.get("cause")
+        province = request.get("province")
+        age_group = request.get("age_group")
+        count = request.get("count")
+        if cause != "dengue":
+            raise PopulationDataError(f"{path}.cause: expected dengue")
+        if province not in DENGUE_PROVINCES:
+            raise PopulationDataError(f"{path}.province: unknown province")
+        if age_group not in DENGUE_AGE_BOUNDS:
+            raise PopulationDataError(f"{path}.age_group: unknown age group")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise PopulationDataError(
+                f"{path}.count: expected a non-negative integer"
+            )
+        result.append({
+            "cause": cause,
+            "province": province,
+            "age_group": age_group,
+            "count": count,
+        })
+    return result
+
+
+def _cause_specific_weights(age_group: str) -> dict[str, list[float]]:
+    lower, upper = DENGUE_AGE_BOUNDS[age_group]
+    return {
+        sex: [
+            1.0 if lower <= age <= upper else 0.0
+            for age in range(AGE_COUNT)
+        ]
+        for sex in SEXES
+    }
+
+
+def _compressed_removed_cells(
+    removed: Mapping[str, list[int]],
+) -> list[dict[str, Any]]:
+    return [
+        {"sex": sex, "age": age, "count": count}
+        for sex in SEXES
+        for age, count in enumerate(removed[sex])
+        if count
+    ]
 
 
 def _long_term_cycle_parameters(
@@ -1168,7 +1252,9 @@ def population_step(
     notable_deaths: Mapping[str, Any],
     baseline: PopulationBaseline,
     rng_factory: Callable[[str], random.Random],
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, int], list[dict]]:
+    *,
+    cause_specific_deaths: Sequence[Mapping[str, Any]] = (),
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict]]:
     """Advance births, deaths, migration and age-sex population one day."""
     next_state = age_population(previous_state, d)
     _roll_cycle_if_needed(next_state, baseline, d)
@@ -1202,7 +1288,11 @@ def population_step(
     next_state["birthday_buckets"]["female"][0][current_month] += female_births
 
     notable = _validated_notable_deaths(notable_deaths)
-    notable_total = sum(notable.values())
+    cause_requests = _validated_cause_specific_deaths(
+        cause_specific_deaths
+    )
+    cause_total = sum(request["count"] for request in cause_requests)
+    notable_total = sum(notable.values()) + cause_total
     for category, count in notable.items():
         if count:
             _remove_people(
@@ -1212,6 +1302,24 @@ def population_step(
                 rng_factory(f"death:notable:{category}"),
                 path=f"state.deaths_today.{category}",
             )
+    confirmed_cause_deaths: list[dict[str, Any]] = []
+    for index, request in enumerate(cause_requests):
+        if request["count"] == 0:
+            confirmed_cause_deaths.append({**request, "removed": []})
+            continue
+        weights = _cause_specific_weights(request["age_group"])
+        removed = _remove_people(
+            next_state,
+            request["count"],
+            weights,
+            rng_factory(f"death:cause:{request['cause']}:{index}"),
+            path=f"state.demographics.cause_specific_deaths_today[{index}]",
+            restrict_to_positive_weights=True,
+        )
+        confirmed_cause_deaths.append({
+            **request,
+            "removed": _compressed_removed_cells(removed),
+        })
     baseline_deaths = plans["baseline_deaths"][offset]
     non_notable = max(0, baseline_deaths - notable_total)
     excess_deaths = max(0, notable_total - baseline_deaths)
@@ -1276,6 +1384,8 @@ def population_step(
         "notable_total": notable_total,
         "non_notable": non_notable,
         "excess": excess_deaths,
+        "dengue": cause_total,
+        "cause_specific": copy.deepcopy(confirmed_cause_deaths),
         **notable,
     }
     flows = {
@@ -1285,6 +1395,7 @@ def population_step(
         "notable_deaths": notable_total,
         "non_notable_deaths": non_notable,
         "excess_deaths": excess_deaths,
+        "cause_specific_deaths": confirmed_cause_deaths,
         "returning_diaspora": returning,
         "foreign_immigrants": foreign,
         "emigrants": emigrants,
