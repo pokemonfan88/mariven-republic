@@ -9,6 +9,14 @@ from numbers import Real
 from pathlib import Path
 from typing import Any
 
+from dengue_dynamics import national_age_totals
+from dengue_model import (
+    DengueBaseline,
+    DengueDataError,
+    dengue_snapshot,
+    initialize_dengue_state,
+    validate_dengue_state,
+)
 from gdp_model import (
     GdpBaseline,
     GdpDataError,
@@ -24,8 +32,9 @@ from population_model import (
     population_snapshot,
     validate_population_state,
 )
+from random_streams import make_rng
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _CORE_DICTIONARIES = (
     "_meta",
@@ -35,9 +44,16 @@ _CORE_DICTIONARIES = (
     "deaths_today",
     "demographics",
     "model_state",
+    "public_health",
 )
 _MODEL_DICTIONARIES = (
-    "weather", "exchange", "commodities", "inflation", "population", "gdp",
+    "weather",
+    "exchange",
+    "commodities",
+    "inflation",
+    "population",
+    "gdp",
+    "dengue",
 )
 _CORE_ECONOMIC_VALUES = (
     "inflation_pct",
@@ -50,7 +66,7 @@ _CORE_ECONOMIC_VALUES = (
 
 
 class StateValidationError(ValueError):
-    """Raised when a simulation state does not match schema v4."""
+    """Raised when a simulation state does not match schema v5."""
 
 
 def _fail(path: str, message: str) -> None:
@@ -125,8 +141,9 @@ def validate_state(
     *,
     population_baseline: PopulationBaseline | None = None,
     gdp_baseline: GdpBaseline | None = None,
+    dengue_baseline: DengueBaseline | None = None,
 ) -> None:
-    """Validate a schema-v4 state, raising an error with a field path."""
+    """Validate a schema-v5 state, raising an error with a field path."""
     if not isinstance(state, Mapping):
         _fail("state", "expected a dictionary")
 
@@ -205,6 +222,39 @@ def validate_state(
                 f"state.demographics.{key}",
                 "does not match population cohorts",
             )
+    if not isinstance(
+        demographics.get("cause_specific_deaths_today"), list
+    ):
+        _fail(
+            "state.demographics.cause_specific_deaths_today",
+            "expected a list",
+        )
+
+    selected_dengue_baseline = (
+        dengue_baseline or _default_dengue_baseline()
+    )
+    try:
+        dengue_ages = national_age_totals(model_state["population"])
+        validate_dengue_state(
+            model_state["dengue"],
+            current_date,
+            dengue_ages,
+            selected_dengue_baseline,
+        )
+        expected_dengue = dengue_snapshot(
+            current_date,
+            model_state["dengue"],
+            selected_dengue_baseline,
+        )
+    except DengueDataError as exc:
+        raise StateValidationError(str(exc)) from exc
+    public_health = dictionaries["public_health"]
+    actual_dengue = public_health.get("dengue")
+    if actual_dengue != expected_dengue:
+        _fail(
+            "state.public_health.dengue",
+            "does not match the internal dengue ledger",
+        )
     non_negative_flow_fields = (
         "births_today",
         "deaths_all_causes_today",
@@ -329,10 +379,20 @@ def validate_state(
                 "other",
             )
         )
-        if deaths["notable_total"] != notable_sum:
+        dengue_deaths = deaths.get("dengue", 0)
+        if (
+            isinstance(dengue_deaths, bool)
+            or not isinstance(dengue_deaths, int)
+            or dengue_deaths < 0
+        ):
+            _fail(
+                "state.deaths_today.dengue",
+                "expected a non-negative integer",
+            )
+        if deaths["notable_total"] != notable_sum + dengue_deaths:
             _fail(
                 "state.deaths_today.notable_total",
-                "does not match notable death categories",
+                "does not match notable and cause-specific deaths",
             )
         if deaths["total"] != deaths["notable_total"] + deaths["non_notable"]:
             _fail(
@@ -514,14 +574,80 @@ def _migrate_v3_to_v4(
     next_economy["gdp_growth_pct"] = gdp_headline_growth(
         public_gdp, gdp_baseline
     )
-    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["schema_version"] = 4
     migrated["economy"] = next_economy
     migrated["model_state"] = copy.deepcopy(dict(model_state))
     migrated["model_state"]["gdp"] = gdp_state
+    return migrated
+
+
+def _migrate_v4_to_v5(
+    raw: Mapping[str, Any],
+    population_baseline: PopulationBaseline,
+    gdp_baseline: GdpBaseline,
+    dengue_baseline: DengueBaseline,
+) -> dict:
+    migrated = copy.deepcopy(dict(raw))
+    current_date = _parse_date(migrated.get("date"))
+    if current_date < date(2026, 1, 1):
+        _fail(
+            "state.date",
+            "dengue schema v5 requires 2026-01-01 or later",
+        )
+    model_state = _require_mapping(migrated, "model_state")
+    population_state = _require_mapping(
+        model_state, "population", "state.model_state"
+    )
+    base_seed = migrated.get("base_seed")
+    if isinstance(base_seed, bool) or not isinstance(base_seed, int):
+        _fail("state.base_seed", "expected an integer")
+    source = (
+        "calibration_reconstruction"
+        if current_date < dengue_baseline.anchor_date
+        else "anchor_snapshot"
+        if current_date == dengue_baseline.anchor_date
+        else "legacy_replay"
+    )
+    dengue_state = initialize_dengue_state(
+        current_date,
+        population_state,
+        dengue_baseline,
+        lambda stream_name: make_rng(
+            base_seed,
+            4,
+            current_date,
+            "dengue-migration",
+            stream_name,
+        ),
+        source,
+    )
+    next_model_state = copy.deepcopy(dict(model_state))
+    next_model_state["dengue"] = dengue_state
+    public_health = migrated.get("public_health", {})
+    if not isinstance(public_health, Mapping):
+        _fail("state.public_health", "expected a dictionary")
+    next_public_health = copy.deepcopy(dict(public_health))
+    next_public_health["dengue"] = dengue_snapshot(
+        current_date, dengue_state, dengue_baseline
+    )
+    demographics = _require_mapping(migrated, "demographics")
+    next_demographics = copy.deepcopy(dict(demographics))
+    next_demographics.setdefault("cause_specific_deaths_today", [])
+    deaths = _require_mapping(migrated, "deaths_today")
+    next_deaths = copy.deepcopy(dict(deaths))
+    if "notable_total" in next_deaths:
+        next_deaths.setdefault("dengue", 0)
+        next_deaths.setdefault("cause_specific", [])
+    migrated["schema_version"] = SCHEMA_VERSION
+    migrated["model_state"] = next_model_state
+    migrated["public_health"] = next_public_health
+    migrated["demographics"] = next_demographics
+    migrated["deaths_today"] = next_deaths
     validate_state(
         migrated,
         population_baseline=population_baseline,
         gdp_baseline=gdp_baseline,
+        dengue_baseline=dengue_baseline,
     )
     return migrated
 
@@ -532,17 +658,24 @@ def migrate_state(
     base_seed: int | None = None,
     population_baseline: PopulationBaseline | None = None,
     gdp_baseline: GdpBaseline | None = None,
+    dengue_baseline: DengueBaseline | None = None,
 ) -> dict:
-    """Migrate a legacy state to deterministic schema v4."""
+    """Migrate a legacy state to deterministic schema v5."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
     baseline = population_baseline or _default_population_baseline()
     selected_gdp_baseline = gdp_baseline or _default_gdp_baseline()
+    selected_dengue_baseline = (
+        dengue_baseline or _default_dengue_baseline()
+    )
     version = raw.get("schema_version")
     if version is None:
         v2 = _migrate_v1_to_v2(raw, base_seed=base_seed)
         v3 = _migrate_v2_to_v3(v2, baseline)
-        return _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
+        v4 = _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
+        return _migrate_v4_to_v5(
+            v4, baseline, selected_gdp_baseline, selected_dengue_baseline
+        )
     if version == 2:
         if base_seed is not None:
             v2 = copy.deepcopy(dict(raw))
@@ -550,18 +683,29 @@ def migrate_state(
         else:
             v2 = raw
         v3 = _migrate_v2_to_v3(v2, baseline)
-        return _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
+        v4 = _migrate_v3_to_v4(v3, baseline, selected_gdp_baseline)
+        return _migrate_v4_to_v5(
+            v4, baseline, selected_gdp_baseline, selected_dengue_baseline
+        )
     if version == 3:
-        return _migrate_v3_to_v4(raw, baseline, selected_gdp_baseline)
+        v4 = _migrate_v3_to_v4(raw, baseline, selected_gdp_baseline)
+        return _migrate_v4_to_v5(
+            v4, baseline, selected_gdp_baseline, selected_dengue_baseline
+        )
+    if version == 4:
+        return _migrate_v4_to_v5(
+            raw, baseline, selected_gdp_baseline, selected_dengue_baseline
+        )
     if version == SCHEMA_VERSION:
         prepared = copy.deepcopy(dict(raw))
         validate_state(
             prepared,
             population_baseline=baseline,
             gdp_baseline=selected_gdp_baseline,
+            dengue_baseline=selected_dengue_baseline,
         )
         return prepared
-    _fail("state.schema_version", f"expected 2, 3 or {SCHEMA_VERSION}")
+    _fail("state.schema_version", f"expected 2, 3, 4 or {SCHEMA_VERSION}")
 
 
 def prepare_state(
@@ -569,17 +713,22 @@ def prepare_state(
     *,
     population_baseline: PopulationBaseline | None = None,
     gdp_baseline: GdpBaseline | None = None,
+    dengue_baseline: DengueBaseline | None = None,
 ) -> dict:
-    """Return an independent, validated schema-v4 state."""
+    """Return an independent, validated schema-v5 state."""
     if not isinstance(raw, Mapping):
         _fail("state", "expected a dictionary")
     baseline = population_baseline or _default_population_baseline()
     selected_gdp_baseline = gdp_baseline or _default_gdp_baseline()
-    if raw.get("schema_version") in (None, 2, 3):
+    selected_dengue_baseline = (
+        dengue_baseline or _default_dengue_baseline()
+    )
+    if raw.get("schema_version") in (None, 2, 3, 4):
         return migrate_state(
             raw,
             population_baseline=baseline,
             gdp_baseline=selected_gdp_baseline,
+            dengue_baseline=selected_dengue_baseline,
         )
 
     prepared = copy.deepcopy(dict(raw))
@@ -587,6 +736,7 @@ def prepare_state(
         prepared,
         population_baseline=baseline,
         gdp_baseline=selected_gdp_baseline,
+        dengue_baseline=selected_dengue_baseline,
     )
     return prepared
 
@@ -606,4 +756,13 @@ def _default_gdp_baseline() -> GdpBaseline:
         Path(__file__).resolve().parents[1]
         / "data"
         / "gdp_baseline_2026.json"
+    )
+
+
+@lru_cache(maxsize=1)
+def _default_dengue_baseline() -> DengueBaseline:
+    return DengueBaseline.from_json(
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "dengue_baseline_2026.json"
     )

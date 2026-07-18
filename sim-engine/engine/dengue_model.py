@@ -1272,6 +1272,9 @@ def dengue_snapshot(
     public = surveillance_snapshot(
         d, state["surveillance"], population_by_province, baseline
     )
+    public["national"]["population"] = sum(
+        population_by_province.values()
+    )
     infectious_by_serotype = {serotype: 0 for serotype in SEROTYPES}
     for province in PROVINCES:
         for cohort in humans[province]["infectious"]:

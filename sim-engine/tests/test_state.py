@@ -35,7 +35,7 @@ V1 = {
 
 
 class StateTests(unittest.TestCase):
-    def test_prepare_migrates_v3_state_to_v4_with_gdp_ledger(self):
+    def test_prepare_migrates_v3_state_to_v5_with_gdp_ledger(self):
         v3 = prepare_state(V1)
         v3["schema_version"] = 3
         v3["model_state"].pop("gdp", None)
@@ -43,7 +43,7 @@ class StateTests(unittest.TestCase):
 
         migrated = migrate_state(v3)
 
-        self.assertEqual(migrated["schema_version"], 4)
+        self.assertEqual(migrated["schema_version"], 5)
         self.assertIn("gdp", migrated["model_state"])
         self.assertEqual(
             migrated["model_state"]["gdp"]["last_processed_date"],
@@ -73,8 +73,9 @@ class StateTests(unittest.TestCase):
         self.assertEqual(migrated["weather"]["condition"], "多云")
         self.assertEqual(set(migrated["model_state"]),
                          {"weather", "exchange", "commodities", "inflation",
-                          "population", "gdp"})
-        self.assertEqual(SCHEMA_VERSION, 4)
+                          "population", "gdp", "dengue"})
+        self.assertEqual(SCHEMA_VERSION, 5)
+        self.assertIn("dengue", migrated["public_health"])
         self.assertEqual(migrated["demographics"]["population"], 1_200_000)
         self.assertEqual(
             sum(migrated["model_state"]["population"]["cohorts"]["male"])
@@ -82,13 +83,13 @@ class StateTests(unittest.TestCase):
             1_200_000,
         )
 
-    def test_prepare_copies_v4_state(self):
-        v4 = prepare_state(V1)
-        copied = prepare_state(v4)
-        self.assertEqual(copied, v4)
-        self.assertIsNot(copied, v4)
+    def test_prepare_copies_v5_state(self):
+        v5 = prepare_state(V1)
+        copied = prepare_state(v5)
+        self.assertEqual(copied, v5)
+        self.assertIsNot(copied, v5)
 
-    def test_prepare_migrates_v2_state_to_v4(self):
+    def test_prepare_migrates_v2_state_to_v5(self):
         v2 = copy.deepcopy(migrate_state(V1))
         v2["schema_version"] = 2
         v2.pop("demographics", None)
@@ -97,12 +98,76 @@ class StateTests(unittest.TestCase):
 
         migrated = prepare_state(v2)
 
-        self.assertEqual(migrated["schema_version"], 4)
+        self.assertEqual(migrated["schema_version"], 5)
         self.assertIn("population", migrated["model_state"])
         self.assertIn("gdp", migrated["model_state"])
         self.assertEqual(
             migrated["model_state"]["future_model"], {"preserved": True}
         )
+
+    def test_prepare_migrates_v4_to_v5_with_dengue(self):
+        v5 = migrate_state(V1)
+        v4 = copy.deepcopy(v5)
+        v4["schema_version"] = 4
+        v4["model_state"].pop("dengue")
+        v4.pop("public_health")
+        original = copy.deepcopy(v4)
+
+        migrated = prepare_state(v4)
+
+        self.assertEqual(v4, original)
+        self.assertEqual(migrated["schema_version"], 5)
+        self.assertIn("dengue", migrated["model_state"])
+        self.assertIn("dengue", migrated["public_health"])
+        self.assertEqual(
+            migrated["public_health"]["dengue"]["as_of_date"],
+            migrated["date"],
+        )
+        self.assertEqual(
+            migrated["public_health"]["dengue"]["national"][
+                "population"
+            ],
+            migrated["population"],
+        )
+
+    def test_early_2026_migration_uses_calibration_reconstruction(self):
+        early = copy.deepcopy(V1)
+        early["date"] = "2026-04-01"
+
+        migrated = migrate_state(early)
+
+        self.assertEqual(
+            migrated["model_state"]["dengue"]["initialization_source"],
+            "calibration_reconstruction",
+        )
+
+    def test_anchor_migration_uses_authoritative_snapshot(self):
+        migrated = migrate_state(V1)
+
+        self.assertEqual(
+            migrated["model_state"]["dengue"]["initialization_source"],
+            "anchor_snapshot",
+        )
+
+    def test_post_anchor_migration_is_labeled_legacy_replay(self):
+        later = copy.deepcopy(V1)
+        later["date"] = "2026-09-01"
+
+        migrated = migrate_state(later)
+
+        self.assertEqual(
+            migrated["model_state"]["dengue"]["initialization_source"],
+            "legacy_replay",
+        )
+
+    def test_pre_2026_state_cannot_be_migrated_to_dengue_schema(self):
+        early = copy.deepcopy(V1)
+        early["date"] = "2025-12-31"
+
+        with self.assertRaisesRegex(
+            StateValidationError, r"^state\.date: dengue schema v5"
+        ):
+            migrate_state(early)
 
     def test_invalid_date_reports_field_path(self):
         broken = copy.deepcopy(V1)
@@ -159,6 +224,29 @@ class StateTests(unittest.TestCase):
         with self.assertRaisesRegex(
             StateValidationError,
             r"^state\.model_state\.population",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_dengue_population_mismatch(self):
+        broken = migrate_state(V1)
+        broken["model_state"]["dengue"]["provinces"]["katora"][
+            "human"
+        ]["susceptible"]["0-4"]["0000"] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.model_state\.dengue\.provinces\.katora",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_public_dengue_snapshot_mismatch(self):
+        broken = migrate_state(V1)
+        broken["public_health"]["dengue"]["national"][
+            "reported_cases"
+        ] += 1
+
+        with self.assertRaisesRegex(
+            StateValidationError, r"^state\.public_health\.dengue"
         ):
             validate_state(broken)
 
