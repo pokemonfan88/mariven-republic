@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -17,6 +18,14 @@ try:
     from build_dengue_baseline import build_baseline
 except ImportError:
     build_baseline = None
+
+try:
+    import dengue_model
+except ImportError:
+    dengue_model = None
+
+DengueBaseline = getattr(dengue_model, "DengueBaseline", None)
+DengueDataError = getattr(dengue_model, "DengueDataError", None)
 
 
 class DengueBaselineBuilderTests(unittest.TestCase):
@@ -48,6 +57,59 @@ class DengueBaselineBuilderTests(unittest.TestCase):
             baseline["metadata"]["source_classes"]["wmar1"],
             "fictional_intervention",
         )
+
+
+class DengueBaselineTests(unittest.TestCase):
+    def test_module_exposes_labeled_loader(self):
+        self.assertIsNotNone(DengueBaseline)
+        self.assertIsNotNone(DengueDataError)
+        self.assertTrue(issubclass(DengueDataError, RuntimeError))
+        self.assertTrue(hasattr(DengueBaseline, "from_json"))
+        self.assertTrue(hasattr(DengueBaseline, "from_mapping"))
+
+    def test_loader_exposes_complete_dimensions(self):
+        self.assertIsNotNone(DengueBaseline)
+        baseline = DengueBaseline.from_json(BASELINE_PATH)
+
+        self.assertEqual(
+            baseline.age_groups,
+            ("0-4", "5-14", "15-29", "30-59", "60+"),
+        )
+        self.assertEqual(
+            baseline.serotypes,
+            ("DENV-1", "DENV-2", "DENV-3", "DENV-4"),
+        )
+        self.assertEqual(sum(baseline.province_populations.values()), 1_200_000)
+        self.assertEqual(baseline.anchor_date.isoformat(), "2026-08-11")
+
+    def test_loader_rejects_bad_mobility_row(self):
+        self.assertIsNotNone(DengueBaseline)
+        raw = build_baseline()
+        raw["mobility"]["katora"]["katora"] -= 0.1
+
+        with self.assertRaisesRegex(
+            DengueDataError, r"^baseline\.mobility\.katora"
+        ):
+            DengueBaseline.from_mapping(raw)
+
+    def test_loader_rejects_unknown_version(self):
+        self.assertIsNotNone(DengueBaseline)
+        raw = build_baseline()
+        raw["version"] = "unknown"
+
+        with self.assertRaisesRegex(DengueDataError, r"^baseline\.version"):
+            DengueBaseline.from_mapping(raw)
+
+    def test_loader_rejects_non_finite_probability(self):
+        self.assertIsNotNone(DengueBaseline)
+        raw = build_baseline()
+        raw["transmission"]["mosquito_to_human"] = math.nan
+
+        with self.assertRaisesRegex(
+            DengueDataError,
+            r"^baseline\.transmission\.mosquito_to_human",
+        ):
+            DengueBaseline.from_mapping(raw)
 
 
 if __name__ == "__main__":
