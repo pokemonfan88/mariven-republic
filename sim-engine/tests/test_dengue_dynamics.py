@@ -74,6 +74,21 @@ class DengueHumanStateTests(unittest.TestCase):
         self.assertIsNotNone(advance_human_state)
         self.assertIsNotNone(total_humans)
 
+    def test_multinomial_tolerates_roundoff_after_all_counts_assigned(self):
+        weights = [
+            3.47571577975261e-05,
+            7.646574715455743e-05,
+            2.085429467851566e-05,
+            0.0,
+        ]
+
+        allocated = dengue_dynamics._draw_multinomial(
+            2, weights, random.Random(0)
+        )
+
+        self.assertEqual(sum(allocated), 2)
+        self.assertEqual(len(allocated), 4)
+
     def test_national_age_totals_cover_population(self):
         self.assertIsNotNone(national_age_totals)
         totals = national_age_totals(self.population_state)

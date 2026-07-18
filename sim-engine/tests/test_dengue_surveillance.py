@@ -2,7 +2,7 @@ import copy
 import random
 import sys
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -260,6 +260,49 @@ class DengueSurveillanceTests(unittest.TestCase):
             sum(record["sampled"] for record in state["daily_records"]),
             4,
         )
+
+    def test_due_deaths_keep_structured_province_and_age_requests(self):
+        state = self._empty_state()
+        clinical = {
+            **self._empty_clinical(),
+            "infections": 1,
+            "symptomatic": 1,
+            "severe": 1,
+            "hospitalized": 1,
+            "deaths": 1,
+            "cohort_outcomes": [{
+                "province": "katora",
+                "age_group": "60+",
+                "prior_mask": 1,
+                "serotype": "DENV-2",
+                "infections": 1,
+                "symptomatic": 1,
+                "warning": 0,
+                "severe": 1,
+                "hospitalized": 1,
+                "deaths": 1,
+                "reported": 0,
+                "sampled": 0,
+            }],
+        }
+
+        requests = []
+        for offset in range(10):
+            state, _ = advance_surveillance(
+                date(2026, 8, 12) + timedelta(days=offset),
+                state,
+                clinical if offset == 0 else self._empty_clinical(),
+                self.baseline,
+                self.rng_factory,
+            )
+            requests.extend(state.get("daily_death_requests", []))
+
+        self.assertEqual(requests, [{
+            "cause": "dengue",
+            "province": "katora",
+            "age_group": "60+",
+            "count": 1,
+        }])
 
     def test_revision_vintages_form_explicit_chain(self):
         state = self._empty_state()

@@ -363,7 +363,11 @@ def _draw_multinomial(
     remaining_weight = sum(weights)
     result: list[int] = []
     for weight in weights[:-1]:
-        probability = 0.0 if remaining_weight <= 0 else weight / remaining_weight
+        probability = (
+            0.0
+            if remaining_weight <= 0
+            else min(1.0, max(0.0, weight / remaining_weight))
+        )
         drawn = _draw_binomial(remaining_count, probability, rng)
         result.append(drawn)
         remaining_count -= drawn

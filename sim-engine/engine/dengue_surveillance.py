@@ -455,6 +455,13 @@ def _process_clinical_queue(d: date, state: dict[str, Any]) -> None:
             continue
         for key in ("severe", "hospitalized", "deaths"):
             state["daily_totals"][key] += item[key]
+        if item["deaths"]:
+            state["daily_death_requests"].append({
+                "cause": "dengue",
+                "province": item["province"],
+                "age_group": item["age_group"],
+                "count": item["deaths"],
+            })
         row = _weekly_row(state, date.fromisoformat(item["onset_date"]))
         province = item["province"]
         for key in ("severe", "hospitalized", "deaths"):
@@ -619,6 +626,7 @@ def advance_surveillance(
     state.setdefault(
         "alert_state", {province: "baseline" for province in PROVINCES}
     )
+    state["daily_death_requests"] = []
     state["daily_totals"] = {
         "date": d.isoformat(),
         "estimated_infections": _validate_count(
@@ -649,6 +657,9 @@ def advance_surveillance(
     state["daily_records"] = state["daily_records"][-history_limit:]
     state["weekly_ledger"] = state["weekly_ledger"][
         -baseline.raw["state_limits"]["weekly_history_weeks"]:
+    ]
+    state["release_vintages"] = state["release_vintages"][
+        -baseline.raw["state_limits"]["release_vintages"]:
     ]
     return state, events
 

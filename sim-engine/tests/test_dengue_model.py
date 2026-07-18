@@ -1,9 +1,10 @@
+import copy
 import json
 import math
 import random
 import sys
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -30,6 +31,14 @@ DengueBaseline = getattr(dengue_model, "DengueBaseline", None)
 DengueDataError = getattr(dengue_model, "DengueDataError", None)
 initialize_dengue_state = getattr(
     dengue_model, "initialize_dengue_state", None
+)
+dengue_step = getattr(dengue_model, "dengue_step", None)
+reconcile_dengue_population = getattr(
+    dengue_model, "reconcile_dengue_population", None
+)
+dengue_snapshot = getattr(dengue_model, "dengue_snapshot", None)
+validate_dengue_state = getattr(
+    dengue_model, "validate_dengue_state", None
 )
 
 
@@ -182,11 +191,213 @@ class DengueStateInitializationTests(unittest.TestCase):
                 "daily_records",
                 "weekly_ledger",
                 "release_vintages",
+                "daily_death_requests",
                 "alert_state",
                 "daily_totals",
             },
             set(state["surveillance"]),
         )
+
+
+class DengueDailyOrchestrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from population_model import (
+            PopulationBaseline,
+            initialize_population_state,
+        )
+
+        cls.baseline = DengueBaseline.from_json(BASELINE_PATH)
+        population_baseline = PopulationBaseline.from_json(
+            ROOT / "data" / "population_baseline_2026.json"
+        )
+        cls.population_state = initialize_population_state(
+            date(2026, 8, 11),
+            1_200_000,
+            population_baseline,
+            base_seed=42,
+        )
+        cls.state = initialize_dengue_state(
+            date(2026, 8, 11),
+            cls.population_state,
+            cls.baseline,
+            lambda name: random.Random(f"init:{name}"),
+            "anchor_snapshot",
+        )
+        cls.profile = json.loads(
+            (ROOT / "data" / "nation_profile.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def test_public_daily_interfaces_exist(self):
+        self.assertIsNotNone(dengue_step)
+        self.assertIsNotNone(reconcile_dengue_population)
+        self.assertIsNotNone(dengue_snapshot)
+        self.assertIsNotNone(validate_dengue_state)
+
+    def test_daily_step_is_pure_deterministic_and_conserving(self):
+        from dengue_dynamics import national_age_totals, total_humans
+
+        original = copy.deepcopy(self.state)
+        arguments = (
+            date(2026, 8, 12),
+            self.state,
+            self.population_state,
+            self._weather(),
+            self.profile,
+            self.baseline,
+            self._rng_factory,
+        )
+
+        first = dengue_step(*arguments)
+        second = dengue_step(*arguments)
+
+        self.assertEqual(first, second)
+        self.assertEqual(self.state, original)
+        self.assertEqual(len(first), 4)
+        self.assertEqual(first[1]["last_processed_date"], "2026-08-12")
+        self.assertEqual(
+            total_humans({
+                province: value["human"]
+                for province, value in first[1]["provinces"].items()
+            }),
+            sum(national_age_totals(self.population_state).values()),
+        )
+
+    def test_daily_step_rejects_a_non_contiguous_date(self):
+        with self.assertRaisesRegex(
+            DengueDataError,
+            r"last_processed_date: expected 2026-08-12",
+        ):
+            dengue_step(
+                date(2026, 8, 13),
+                self.state,
+                self.population_state,
+                self._weather(),
+                self.profile,
+                self.baseline,
+                self._rng_factory,
+            )
+
+    def test_reconciliation_matches_changed_population_age_margins(self):
+        from dengue_dynamics import national_age_totals
+
+        after = copy.deepcopy(self.population_state)
+        after["cohorts"]["male"][0] += 5
+        after["cohorts"]["female"][30] -= 3
+
+        reconciled = reconcile_dengue_population(
+            self.state,
+            self.population_state,
+            after,
+            [],
+            self.baseline,
+        )
+        dengue_ages = {
+            age: sum(
+                province["human"]["population_by_age"][age]
+                for province in reconciled["provinces"].values()
+            )
+            for age in self.baseline.age_groups
+        }
+
+        self.assertEqual(dengue_ages, national_age_totals(after))
+        self.assertEqual(self.state["last_processed_date"], "2026-08-11")
+
+    def test_confirmed_dengue_death_is_removed_once_and_booked(self):
+        after = copy.deepcopy(self.population_state)
+        after["cohorts"]["female"][70] -= 1
+        before_katora = self.state["provinces"]["katora"]["human"][
+            "population_by_age"
+        ]["60+"]
+
+        reconciled = reconcile_dengue_population(
+            self.state,
+            self.population_state,
+            after,
+            [{
+                "cause": "dengue",
+                "province": "katora",
+                "age_group": "60+",
+                "count": 1,
+            }],
+            self.baseline,
+        )
+
+        self.assertEqual(
+            reconciled["provinces"]["katora"]["human"]
+            ["population_by_age"]["60+"],
+            before_katora - 1,
+        )
+        self.assertEqual(
+            reconciled["cumulative_annual"]["deaths"],
+            self.state["cumulative_annual"]["deaths"] + 1,
+        )
+        self.assertEqual(
+            self.state["provinces"]["katora"]["human"]
+            ["population_by_age"]["60+"],
+            before_katora,
+        )
+
+    def test_validation_rejects_population_mismatch(self):
+        from dengue_dynamics import national_age_totals
+
+        expected = national_age_totals(self.population_state)
+        expected["0-4"] += 1
+        with self.assertRaisesRegex(
+            DengueDataError, r"human\.population_by_age\.0-4"
+        ):
+            validate_dengue_state(
+                self.state,
+                date(2026, 8, 11),
+                expected,
+                self.baseline,
+            )
+
+    def test_snapshot_separates_estimated_and_reported(self):
+        state = copy.deepcopy(self.state)
+        state["surveillance"]["daily_totals"].update({
+            "date": "2026-08-11",
+            "estimated_infections": 17,
+            "reported": 3,
+        })
+
+        public = dengue_snapshot(date(2026, 8, 11), state, self.baseline)
+
+        self.assertEqual(public["national"]["estimated_infections"], 17)
+        self.assertEqual(public["national"]["reported_cases"], 3)
+        self.assertIn("serotypes", public)
+        self.assertIn("healthcare_pressure", public)
+        self.assertNotIn("clinical_queue", public)
+
+    @staticmethod
+    def _rng_factory(name):
+        return random.Random(f"daily:{name}")
+
+    @staticmethod
+    def _weather():
+        city = {
+            "temp_high": 30.0,
+            "temp_low": 22.0,
+            "humidity": 70.0,
+            "rainfall_mm": 4.0,
+        }
+        return {
+            **{
+                key: dict(city)
+                for key in (
+                    "katora",
+                    "makadi_port",
+                    "timo",
+                    "pela",
+                    "ruwa",
+                )
+            },
+            **city,
+            "rainfall_14d_mm": 56.0,
+            "soil_moisture_index": 0.5,
+        }
 
 if __name__ == "__main__":
     unittest.main()
