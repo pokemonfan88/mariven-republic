@@ -203,6 +203,7 @@ class DengueStateInitializationTests(unittest.TestCase):
                 "release_vintages",
                 "daily_death_requests",
                 "alert_state",
+                "national_emergency",
                 "daily_totals",
             },
             set(state["surveillance"]),
@@ -362,6 +363,27 @@ class DengueDailyOrchestrationTests(unittest.TestCase):
                 self.state,
                 date(2026, 8, 11),
                 expected,
+                self.baseline,
+            )
+
+    def test_validation_rejects_invalid_alert_persistence_counter(self):
+        from dengue_dynamics import national_age_totals
+
+        broken = copy.deepcopy(self.state)
+        broken["surveillance"]["alert_state"]["katora"] = {
+            "level": "alert",
+            "outbreak_weeks": -1,
+            "recovery_weeks": 0,
+        }
+
+        with self.assertRaisesRegex(
+            DengueDataError,
+            r"alert_state\.katora\.outbreak_weeks",
+        ):
+            validate_dengue_state(
+                broken,
+                date(2026, 8, 11),
+                national_age_totals(self.population_state),
                 self.baseline,
             )
 

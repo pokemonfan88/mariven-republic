@@ -527,6 +527,10 @@ def initialize_dengue_state(
             "alert_state": {
                 province: "baseline" for province in PROVINCES
             },
+            "national_emergency": {
+                "active": False,
+                "pressure_weeks": 0,
+            },
             "daily_totals": {
                 "date": current_date.isoformat(),
                 "estimated_infections": 0,
@@ -761,8 +765,8 @@ def dengue_step(
         clinical,
         baseline,
         lambda name: rng_factory(f"surveillance:{name}"),
+        healthcare_pressure=pressure,
     )
-    surveillance["daily_totals"]["healthcare_pressure"] = pressure
     for province in PROVINCES:
         next_state["provinces"][province]["human"] = human_state[province]
         next_state["provinces"][province]["vector"] = vector_state[province]
@@ -1047,6 +1051,28 @@ def validate_dengue_state(
                 f"{root}.surveillance.alert_state.{province}",
                 "unknown alert level",
             )
+        if isinstance(alert, Mapping):
+            for counter in ("outbreak_weeks", "recovery_weeks"):
+                _validate_non_negative_integer(
+                    alert.get(counter),
+                    (
+                        f"{root}.surveillance.alert_state."
+                        f"{province}.{counter}"
+                    ),
+                )
+    national_emergency = _mapping(
+        surveillance.get("national_emergency"),
+        f"{root}.surveillance.national_emergency",
+    )
+    if not isinstance(national_emergency.get("active"), bool):
+        _fail(
+            f"{root}.surveillance.national_emergency.active",
+            "expected a boolean",
+        )
+    _validate_non_negative_integer(
+        national_emergency.get("pressure_weeks"),
+        f"{root}.surveillance.national_emergency.pressure_weeks",
+    )
     for index, request in enumerate(surveillance["daily_death_requests"]):
         request_path = f"{root}.surveillance.daily_death_requests[{index}]"
         item = _mapping(request, request_path)

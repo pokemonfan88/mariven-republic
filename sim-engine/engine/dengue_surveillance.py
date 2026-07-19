@@ -279,6 +279,139 @@ def advance_alert_state(
     return state
 
 
+def _percentile(values: list[int], quantile: float) -> int:
+    if not values:
+        return 0
+    ordered = sorted(values)
+    index = max(
+        0, min(len(ordered) - 1, math.ceil(quantile * len(ordered)) - 1)
+    )
+    return ordered[index]
+
+
+def _rt_estimate(current: int, previous: int) -> dict[str, float]:
+    central = (current + 0.5) / (previous + 0.5)
+    standard_error = math.sqrt(
+        1.0 / (current + 0.5) + 1.0 / (previous + 0.5)
+    )
+    return {
+        "central": round(central, 3),
+        "lower": round(central * math.exp(-1.96 * standard_error), 3),
+        "upper": round(central * math.exp(1.96 * standard_error), 3),
+    }
+
+
+def _update_weekly_alerts(
+    d: date,
+    state: dict[str, Any],
+    pressure: float,
+) -> list[dict[str, Any]]:
+    if d.weekday() != 6:
+        return []
+    week_start, week_end = epidemiological_week(d)
+    current_row = next(
+        (
+            row
+            for row in state["weekly_ledger"]
+            if row["week_end"] == week_end.isoformat()
+        ),
+        _new_week_row(week_start, week_end),
+    )
+    prior_rows = [
+        row
+        for row in state["weekly_ledger"]
+        if row["week_end"] < current_row["week_end"]
+    ]
+    previous_row = prior_rows[-1] if prior_rows else None
+    events: list[dict[str, Any]] = []
+    for province in PROVINCES:
+        history = [
+            row["reported_by_province"][province]
+            for row in prior_rows
+            if "reported_by_province" in row
+        ]
+        cases = current_row["reported_by_province"][province]
+        previous_cases = (
+            previous_row["reported_by_province"][province]
+            if previous_row is not None
+            else 0
+        )
+        rt = _rt_estimate(cases, previous_cases)["central"]
+        confirmed = current_row.get(
+            "confirmed_by_province", {}
+        ).get(province, 0)
+        previous_state = state["alert_state"].get(province, "baseline")
+        previous_level = (
+            previous_state.get("level", "baseline")
+            if isinstance(previous_state, Mapping)
+            else previous_state
+        )
+        candidate = province_alert(
+            cases=cases,
+            p75=_percentile(history, 0.75),
+            p90=_percentile(history, 0.90),
+            p95=_percentile(history, 0.95),
+            rt=rt,
+            confirmed=confirmed,
+            pressure=pressure,
+            previous=previous_level,
+        )
+        next_alert = advance_alert_state(
+            previous_state
+            if isinstance(previous_state, Mapping)
+            else {"level": previous_level},
+            candidate,
+        )
+        state["alert_state"][province] = next_alert
+        if next_alert["level"] != previous_level:
+            events.append({
+                "type": "public_health",
+                "severity": (
+                    "warning"
+                    if next_alert["level"] in {"alert", "outbreak"}
+                    else "info"
+                ),
+                "title": "登革热省级预警变更",
+                "description": (
+                    f"{province}：{previous_level} → "
+                    f"{next_alert['level']}。"
+                ),
+            })
+    national = state["national_emergency"]
+    pressure_weeks = (
+        national.get("pressure_weeks", 0) + 1
+        if pressure >= 0.85
+        else 0
+    )
+    levels = [
+        value.get("level", "baseline")
+        if isinstance(value, Mapping)
+        else value
+        for value in state["alert_state"].values()
+    ]
+    outbreak_count = levels.count("outbreak")
+    alert_or_higher = sum(
+        level in {"alert", "outbreak"} for level in levels
+    )
+    active = (
+        pressure_weeks >= 2
+        or (outbreak_count >= 2 and alert_or_higher >= 3)
+    )
+    was_active = bool(national.get("active", False))
+    state["national_emergency"] = {
+        "active": active,
+        "pressure_weeks": pressure_weeks,
+    }
+    if active != was_active:
+        events.append({
+            "type": "public_health",
+            "severity": "warning" if active else "info",
+            "title": "登革热全国紧急状态",
+            "description": "已启动。" if active else "已解除。",
+        })
+    return events
+
+
 def _bounded_children(capacities: list[int], total: int) -> list[int]:
     """Allocate a child count across parent chunks without exceeding them."""
     if total < 0 or total > sum(capacities):
@@ -611,6 +744,8 @@ def advance_surveillance(
     clinical_flows: Mapping[str, Any],
     baseline: DengueBaseline,
     rng_factory: Callable[[str], random.Random],
+    *,
+    healthcare_pressure: float = 0.0,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Advance queues and publish due weekly vintages without mutation."""
     state = copy.deepcopy(dict(previous))
@@ -625,6 +760,9 @@ def advance_surveillance(
         state.setdefault(key, [])
     state.setdefault(
         "alert_state", {province: "baseline" for province in PROVINCES}
+    )
+    state.setdefault(
+        "national_emergency", {"active": False, "pressure_weeks": 0}
     )
     state["daily_death_requests"] = []
     state["daily_totals"] = {
@@ -641,6 +779,7 @@ def advance_surveillance(
         "severe": 0,
         "hospitalized": 0,
         "deaths": 0,
+        "healthcare_pressure": float(healthcare_pressure),
     }
     _schedule_clinical_flows(
         d, state, clinical_flows, baseline, rng_factory
@@ -652,7 +791,9 @@ def advance_surveillance(
     )
     state["daily_totals"]["lab_processed"] = processed
     state["daily_totals"]["confirmed"] = confirmed
-    events = _release_due_vintages(d, state)
+    events = _update_weekly_alerts(
+        d, state, float(healthcare_pressure)
+    ) + _release_due_vintages(d, state)
     history_limit = baseline.raw["state_limits"]["daily_quality_history_days"]
     state["daily_records"] = state["daily_records"][-history_limit:]
     state["weekly_ledger"] = state["weekly_ledger"][
@@ -691,6 +832,14 @@ def surveillance_snapshot(
         if item.get("report_date") == d.isoformat()
     ]
     provinces: dict[str, dict[str, Any]] = {}
+    ledger = [
+        row
+        for row in state.get("weekly_ledger", [])
+        if row.get("week_end", "") <= d.isoformat()
+    ]
+    latest_four = ledger[-4:]
+    previous_row = ledger[-2] if len(ledger) >= 2 else None
+    current_row = ledger[-1] if ledger else None
     for province in PROVINCES:
         reported = sum(
             item["reported"]
@@ -706,6 +855,22 @@ def surveillance_snapshot(
                 3,
             ),
             "alert_level": levels.get(province, "baseline"),
+            "reported_4_week": sum(
+                row["reported_by_province"][province]
+                for row in latest_four
+            ),
+            "rt": _rt_estimate(
+                (
+                    current_row["reported_by_province"][province]
+                    if current_row is not None
+                    else 0
+                ),
+                (
+                    previous_row["reported_by_province"][province]
+                    if previous_row is not None
+                    else 0
+                ),
+            ),
         }
     latest_release = (
         copy.deepcopy(state.get("release_vintages", [])[-1])
@@ -740,6 +905,37 @@ def surveillance_snapshot(
             "hospitalized": daily.get("hospitalized", 0),
             "deaths": daily.get("deaths", 0),
             "alert_level": national_level,
+            "national_emergency": bool(
+                state.get("national_emergency", {}).get("active", False)
+            ),
+            "reported_4_week": sum(
+                row["reported_national"] for row in latest_four
+            ),
+            "test_positivity": round(
+                0.0
+                if daily.get("lab_processed", 0) == 0
+                else daily.get("confirmed", 0)
+                / daily["lab_processed"],
+                4,
+            ),
+            "case_fatality_ratio": round(
+                0.0
+                if daily.get("reported", 0) == 0
+                else daily.get("deaths", 0) / daily["reported"],
+                4,
+            ),
+            "rt": _rt_estimate(
+                (
+                    current_row["reported_national"]
+                    if current_row is not None
+                    else 0
+                ),
+                (
+                    previous_row["reported_national"]
+                    if previous_row is not None
+                    else 0
+                ),
+            ),
         },
         "provinces": provinces,
         "latest_release": latest_release,

@@ -3,7 +3,7 @@ import json
 import math
 from calendar import monthrange
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from numbers import Real
 from pathlib import Path
@@ -14,7 +14,9 @@ from dengue_model import (
     DengueBaseline,
     DengueDataError,
     dengue_snapshot,
+    dengue_step,
     initialize_dengue_state,
+    reconcile_dengue_population,
     validate_dengue_state,
 )
 from gdp_model import (
@@ -334,6 +336,43 @@ def validate_state(
         )
 
     deaths = dictionaries["deaths_today"]
+    cause_specific = deaths.get("cause_specific")
+    if not isinstance(cause_specific, list):
+        _fail(
+            "state.deaths_today.cause_specific",
+            "expected a list",
+        )
+    if cause_specific != demographics["cause_specific_deaths_today"]:
+        _fail(
+            "state.deaths_today.cause_specific",
+            "does not match state.demographics.cause_specific_deaths_today",
+        )
+    cause_specific_total = 0
+    for index, item in enumerate(cause_specific):
+        path = f"state.deaths_today.cause_specific[{index}]"
+        if not isinstance(item, Mapping):
+            _fail(path, "expected a dictionary")
+        if item.get("cause") != "dengue":
+            _fail(f"{path}.cause", "expected dengue")
+        count = item.get("count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            _fail(f"{path}.count", "expected a non-negative integer")
+        cause_specific_total += count
+    dengue_deaths = deaths.get("dengue")
+    if (
+        isinstance(dengue_deaths, bool)
+        or not isinstance(dengue_deaths, int)
+        or dengue_deaths < 0
+    ):
+        _fail(
+            "state.deaths_today.dengue",
+            "expected a non-negative integer",
+        )
+    if dengue_deaths != cause_specific_total:
+        _fail(
+            "state.deaths_today.dengue",
+            "does not match cause-specific dengue deaths",
+        )
     if "notable_total" in deaths:
         death_fields = (
             "total",
@@ -379,16 +418,6 @@ def validate_state(
                 "other",
             )
         )
-        dengue_deaths = deaths.get("dengue", 0)
-        if (
-            isinstance(dengue_deaths, bool)
-            or not isinstance(dengue_deaths, int)
-            or dengue_deaths < 0
-        ):
-            _fail(
-                "state.deaths_today.dengue",
-                "expected a non-negative integer",
-            )
         if deaths["notable_total"] != notable_sum + dengue_deaths:
             _fail(
                 "state.deaths_today.notable_total",
@@ -581,6 +610,79 @@ def _migrate_v3_to_v4(
     return migrated
 
 
+def _migration_weather(d: date) -> dict[str, float]:
+    """Return a deterministic seasonal climate used only for v4 replay."""
+    year_days = 366 if monthrange(d.year, 2)[1] == 29 else 365
+    phase_days = 30 * year_days / 365.2425
+    mean_temperature = 25.5 + 2.5 * math.cos(
+        2 * math.pi * (d.timetuple().tm_yday - phase_days) / year_days
+    )
+
+    def rainfall(candidate: date) -> float:
+        return 7.0 if candidate.month in {11, 12, 1, 2, 3, 4} else 1.2
+
+    daily_rainfall = rainfall(d)
+    rainfall_14d = sum(
+        rainfall(d - timedelta(days=offset)) for offset in range(14)
+    )
+    return {
+        "temp_high": round(mean_temperature + 4.0, 2),
+        "temp_low": round(mean_temperature - 4.0, 2),
+        "humidity": 78.0 if daily_rainfall > 2.0 else 65.0,
+        "rainfall_mm": daily_rainfall,
+        "rainfall_14d_mm": rainfall_14d,
+        "soil_moisture_index": 0.72 if daily_rainfall > 2.0 else 0.38,
+    }
+
+
+def _replay_dengue_migration(
+    current_date: date,
+    population_state: Mapping[str, Any],
+    baseline: DengueBaseline,
+    base_seed: int,
+) -> dict[str, Any]:
+    """Replay post-anchor dengue days without consuming native model streams."""
+    replay_state = initialize_dengue_state(
+        baseline.anchor_date,
+        population_state,
+        baseline,
+        lambda stream_name: make_rng(
+            base_seed,
+            4,
+            baseline.anchor_date,
+            "migration_replay",
+            stream_name,
+        ),
+        "legacy_replay",
+    )
+    replay_date = baseline.anchor_date + timedelta(days=1)
+    while replay_date <= current_date:
+        _, replay_state, death_requests, _ = dengue_step(
+            replay_date,
+            replay_state,
+            population_state,
+            _migration_weather(replay_date),
+            {},
+            baseline,
+            lambda stream_name, replay_day=replay_date: make_rng(
+                base_seed,
+                4,
+                replay_day,
+                "migration_replay",
+                stream_name,
+            ),
+        )
+        replay_state = reconcile_dengue_population(
+            replay_state,
+            population_state,
+            population_state,
+            death_requests,
+            baseline,
+        )
+        replay_date += timedelta(days=1)
+    return replay_state
+
+
 def _migrate_v4_to_v5(
     raw: Mapping[str, Any],
     population_baseline: PopulationBaseline,
@@ -608,18 +710,27 @@ def _migrate_v4_to_v5(
         if current_date == dengue_baseline.anchor_date
         else "legacy_replay"
     )
-    dengue_state = initialize_dengue_state(
-        current_date,
-        population_state,
-        dengue_baseline,
-        lambda stream_name: make_rng(
-            base_seed,
-            4,
+    dengue_state = (
+        _replay_dengue_migration(
             current_date,
-            "dengue-migration",
-            stream_name,
-        ),
-        source,
+            population_state,
+            dengue_baseline,
+            base_seed,
+        )
+        if current_date > dengue_baseline.anchor_date
+        else initialize_dengue_state(
+            current_date,
+            population_state,
+            dengue_baseline,
+            lambda stream_name: make_rng(
+                base_seed,
+                4,
+                current_date,
+                "dengue-migration",
+                stream_name,
+            ),
+            source,
+        )
     )
     next_model_state = copy.deepcopy(dict(model_state))
     next_model_state["dengue"] = dengue_state
@@ -635,9 +746,8 @@ def _migrate_v4_to_v5(
     next_demographics.setdefault("cause_specific_deaths_today", [])
     deaths = _require_mapping(migrated, "deaths_today")
     next_deaths = copy.deepcopy(dict(deaths))
-    if "notable_total" in next_deaths:
-        next_deaths.setdefault("dengue", 0)
-        next_deaths.setdefault("cause_specific", [])
+    next_deaths.setdefault("dengue", 0)
+    next_deaths.setdefault("cause_specific", [])
     migrated["schema_version"] = SCHEMA_VERSION
     migrated["model_state"] = next_model_state
     migrated["public_health"] = next_public_health

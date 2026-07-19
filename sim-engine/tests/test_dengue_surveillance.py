@@ -355,6 +355,23 @@ class DengueSurveillanceTests(unittest.TestCase):
         self.assertEqual(first["level"], "alert")
         self.assertEqual(second["level"], "outbreak")
 
+    def test_weekly_surveillance_advances_alerts_and_national_emergency(self):
+        state = self._empty_state()
+        for current in (date(2026, 8, 16), date(2026, 8, 23)):
+            state, _ = advance_surveillance(
+                current,
+                state,
+                self._empty_clinical(),
+                self.baseline,
+                self.rng_factory,
+                healthcare_pressure=0.90,
+            )
+
+        self.assertTrue(state["national_emergency"]["active"])
+        self.assertEqual(
+            state["alert_state"]["katora"]["level"], "outbreak"
+        )
+
     def test_snapshot_keeps_estimated_and_reported_separate(self):
         self.assertIsNotNone(surveillance_snapshot)
         state = self._empty_state()
@@ -379,6 +396,9 @@ class DengueSurveillanceTests(unittest.TestCase):
         self.assertEqual(public["national"]["estimated_infections"], 12)
         self.assertEqual(public["national"]["reported_cases"], 2)
         self.assertEqual(public["national"]["lab_confirmed"], 1)
+        self.assertIn("test_positivity", public["national"])
+        self.assertIn("rt", public["national"])
+        self.assertIn("reported_4_week", public["national"])
 
     def _empty_state(self):
         return {

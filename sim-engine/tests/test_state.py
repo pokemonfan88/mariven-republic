@@ -151,7 +151,7 @@ class StateTests(unittest.TestCase):
 
     def test_post_anchor_migration_is_labeled_legacy_replay(self):
         later = copy.deepcopy(V1)
-        later["date"] = "2026-09-01"
+        later["date"] = "2026-08-23"
 
         migrated = migrate_state(later)
 
@@ -159,6 +159,13 @@ class StateTests(unittest.TestCase):
             migrated["model_state"]["dengue"]["initialization_source"],
             "legacy_replay",
         )
+        self.assertTrue(any(
+            row["source"] == "dynamic"
+            and row["week_end"] > "2026-08-11"
+            for row in migrated["model_state"]["dengue"]["surveillance"][
+                "weekly_ledger"
+            ]
+        ))
 
     def test_pre_2026_state_cannot_be_migrated_to_dengue_schema(self):
         early = copy.deepcopy(V1)
@@ -247,6 +254,40 @@ class StateTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             StateValidationError, r"^state\.public_health\.dengue"
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_cause_specific_death_ledger_mismatch(self):
+        broken = migrate_state(V1)
+        broken["deaths_today"]["cause_specific"] = [{
+            "cause": "dengue",
+            "province": "western",
+            "age_group": "60+",
+            "count": 1,
+            "removed": [],
+        }]
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.deaths_today\.cause_specific",
+        ):
+            validate_state(broken)
+
+    def test_validate_rejects_dengue_death_total_mismatch(self):
+        broken = migrate_state(V1)
+        entry = {
+            "cause": "dengue",
+            "province": "western",
+            "age_group": "60+",
+            "count": 1,
+            "removed": [],
+        }
+        broken["deaths_today"]["cause_specific"] = [entry]
+        broken["demographics"]["cause_specific_deaths_today"] = [entry]
+
+        with self.assertRaisesRegex(
+            StateValidationError,
+            r"^state\.deaths_today\.dengue",
         ):
             validate_state(broken)
 
